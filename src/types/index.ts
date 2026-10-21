@@ -45,6 +45,19 @@ export interface Conversation {
   assignedAgentName?: string;
   assignedUserId?: string | null;
   stage?: string;
+  channel?: string;
+  whatsappLineId?: string | null;
+  whatsappLine?: {
+    id: string;
+    name: string;
+    providerType?: 'QR_BAILEYS' | 'META_CLOUD';
+    phoneNumberId?: string;
+  };
+  collaborators?: Array<{
+    id: string;
+    name: string;
+    email?: string;
+  }>;
   // Campos del backend sin procesar (para referencia o robustez)
   contact?: {
     id: string;

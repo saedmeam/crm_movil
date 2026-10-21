@@ -23,12 +23,15 @@ import {
   MessageSquare,
   Building,
   Sliders,
+  Moon,
+  Sun,
 } from 'lucide-react-native';
 import { AppStackParamList } from '../../navigation/types';
 import { Conversation, MessageStatus } from '../../types';
 import { chatService } from '../../api/chat.service';
 import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { resolveMediaUrl } from '../../config/env';
 
 type ChatListNavigationProp = NativeStackNavigationProp<AppStackParamList, 'ChatList'>;
@@ -42,6 +45,7 @@ type TabFilter = 'all' | 'unread' | 'my_chats';
 export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const { isDark, colors, toggleTheme } = useTheme();
   const { socket, isConnected } = useSocket();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -179,7 +183,10 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
       <TouchableOpacity
-        style={styles.chatItem}
+        style={[
+          styles.chatItem,
+          { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle },
+        ]}
         activeOpacity={0.7}
         onPress={() => navigation.navigate('ChatConversation', { conversation: item })}
       >
@@ -188,8 +195,8 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={styles.avatar} />
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitial}>
+            <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#2A3942' : '#E2E8F0' }]}>
+              <Text style={[styles.avatarInitial, { color: isDark ? '#E9EDEF' : '#475569' }]}>
                 {item.contactName?.charAt(0)?.toUpperCase() || '?'}
               </Text>
             </View>
@@ -198,33 +205,50 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Información central */}
         <View style={styles.chatContent}>
-          <View style={styles.chatHeaderRow}>
-            <Text style={styles.contactName} numberOfLines={1}>
-              {item.contactName || item.contactPhone}
-            </Text>
-            <Text style={styles.timestamp}>
-              {item.lastMessageTime ? new Date(item.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-            </Text>
-          </View>
-
-          {item.companyName && (
-            <View style={styles.companyRow}>
-              <Building size={12} color="#64748B" style={{ marginRight: 4 }} />
-              <Text style={styles.companyName} numberOfLines={1}>{item.companyName}</Text>
+            <View style={styles.chatHeaderRow}>
+              <Text style={[styles.contactName, { color: colors.textPrimary }]} numberOfLines={1}>
+                {item.contactName || item.contactPhone}
+              </Text>
+              <Text style={[styles.timestamp, { color: colors.textMuted }]}>
+                {item.lastMessageTime ? new Date(item.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+              </Text>
             </View>
-          )}
+
+            {/* Fila de Teléfono y Línea de WhatsApp */}
+            <View style={styles.contactMetaRow}>
+              {item.contactPhone ? (
+                <View style={[styles.phoneBadge, { backgroundColor: isDark ? '#202C33' : '#F1F5F9', borderColor: colors.borderSubtle }]}>
+                  <Text style={[styles.phoneText, { color: isDark ? '#8696A0' : '#334155' }]}>📞 {item.contactPhone}</Text>
+                </View>
+              ) : null}
+
+              {item.whatsappLine?.name ? (
+                <View style={[styles.lineBadge, isDark && { backgroundColor: 'rgba(0,168,132,0.15)', borderColor: 'rgba(0,168,132,0.3)' }]}>
+                  <Text style={[styles.lineBadgeText, isDark && { color: '#00A884' }]} numberOfLines={1}>
+                    {item.whatsappLine.name}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {item.companyName && (
+              <View style={styles.companyRow}>
+                <Building size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                <Text style={[styles.companyName, { color: colors.textSecondary }]} numberOfLines={1}>{item.companyName}</Text>
+              </View>
+            )}
 
           <View style={styles.lastMessageRow}>
             <View style={styles.lastMessageLeft}>
               {renderStatusCheck(item.lastMessageStatus, item.lastMessageSenderType)}
-              <Text style={styles.lastMessageText} numberOfLines={1}>
+              <Text style={[styles.lastMessageText, { color: colors.textSecondary }]} numberOfLines={1}>
                 {item.lastMessage || 'Conversación iniciada'}
               </Text>
             </View>
 
             {/* Badge de No Leídos */}
             {item.unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
+              <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
                 <Text style={styles.unreadCountText}>{item.unreadCount}</Text>
               </View>
             )}
@@ -234,11 +258,14 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
+  const userRole = String(user?.role || '').toUpperCase();
+  const isAdmin = userRole === 'ADMIN' || userRole === 'ADMINISTRADOR' || userRole === 'SUPERADMIN';
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       
       {/* Barra Superior WhatsApp / CRM */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { backgroundColor: colors.headerBg }]}>
         <View style={styles.topHeaderLeft}>
           <Text style={styles.headerTitle}>Horustech CRM</Text>
           <View style={styles.connectionStatus}>
@@ -256,15 +283,29 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Botones de Cabecera: Admin y Logout */}
+        {/* Botones de Cabecera: Modo Oscuro, Admin y Logout */}
         <View style={styles.topHeaderActions}>
           <TouchableOpacity
             style={styles.headerActionBtn}
-            onPress={() => navigation.navigate('AdminMenu')}
+            onPress={toggleTheme}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Sliders size={20} color="#FFFFFF" />
+            {isDark ? (
+              <Sun size={20} color="#F59E0B" />
+            ) : (
+              <Moon size={20} color="#FFFFFF" />
+            )}
           </TouchableOpacity>
+
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.headerActionBtn}
+              onPress={() => navigation.navigate('AdminMenu')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Sliders size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.headerActionBtn}
@@ -277,13 +318,13 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       {/* Barra de Búsqueda */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Search size={18} color="#64748B" style={{ marginRight: 8 }} />
+      <View style={[styles.searchSection, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
+        <View style={[styles.searchBar, { backgroundColor: isDark ? '#202C33' : '#FFFFFF', borderColor: colors.borderSubtle }]}>
+          <Search size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
             placeholder="Buscar por nombre, teléfono o empresa..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCorrect={false}
@@ -292,34 +333,70 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       {/* Tabs de Filtro */}
-      <View style={styles.tabsContainer}>
+      <View style={[styles.tabsContainer, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'all' && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+            activeTab === 'all' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
+          ]}
           onPress={() => setActiveTab('all')}
         >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>Todos</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: colors.textSecondary },
+              activeTab === 'all' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+            ]}
+          >
+            Todos
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'unread' && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+            activeTab === 'unread' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
+          ]}
           onPress={() => setActiveTab('unread')}
         >
-          <Text style={[styles.tabText, activeTab === 'unread' && styles.tabTextActive]}>No leídos</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: colors.textSecondary },
+              activeTab === 'unread' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+            ]}
+          >
+            No leídos
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'my_chats' && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+            activeTab === 'my_chats' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
+          ]}
           onPress={() => setActiveTab('my_chats')}
         >
-          <Text style={[styles.tabText, activeTab === 'my_chats' && styles.tabTextActive]}>Mis Chats</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: colors.textSecondary },
+              activeTab === 'my_chats' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+            ]}
+          >
+            Mis Chats
+          </Text>
         </TouchableOpacity>
       </View>
 
       {/* Lista de Chats con FlashList */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#075E54" />
-          <Text style={styles.loadingText}>Sincronizando chats...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Sincronizando chats...</Text>
         </View>
       ) : (
         <FlashList
@@ -333,14 +410,14 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
                 setIsRefreshing(true);
                 fetchConversations();
               }}
-              colors={['#075E54']}
+              colors={[colors.primary]}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <MessageSquare size={48} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>Sin conversaciones</Text>
-              <Text style={styles.emptySubtitle}>No hay mensajes en esta bandeja de entrada</Text>
+              <MessageSquare size={48} color={colors.textMuted} />
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Sin conversaciones</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>No hay mensajes en esta bandeja de entrada</Text>
             </View>
           }
         />
@@ -493,6 +570,40 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     color: '#94A3B8',
+  },
+  contactMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginVertical: 3,
+  },
+  phoneBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  phoneText: {
+    fontSize: 11,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  lineBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    maxWidth: 150,
+  },
+  lineBadgeText: {
+    fontSize: 10,
+    color: '#059669',
+    fontWeight: '700',
   },
   companyRow: {
     flexDirection: 'row',

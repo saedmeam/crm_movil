@@ -20,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { AppStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 type AdminMenuNavProp = NativeStackNavigationProp<AppStackParamList, 'AdminMenu'>;
 
@@ -30,6 +31,10 @@ interface Props {
 export const AdminMenuScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { isDark, colors } = useTheme();
+
+  const userRole = String(user?.role || '').toUpperCase();
+  const isAdmin = userRole === 'ADMIN' || userRole === 'ADMINISTRADOR' || userRole === 'SUPERADMIN';
 
   const menuSections = [
     {
@@ -81,10 +86,38 @@ export const AdminMenuScreen: React.FC<Props> = ({ navigation }) => {
     },
   ];
 
+  if (!isAdmin) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <ArrowLeft size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>Acceso Restringido</Text>
+          </View>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <ShieldAlert size={64} color="#EF4444" style={{ marginBottom: 16 }} />
+          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>
+            Permiso Insuficiente
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>
+            Solo los usuarios con rol de Administrador pueden acceder a la configuración del sistema.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
@@ -95,7 +128,7 @@ export const AdminMenuScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>Panel de Administración</Text>
           <Text style={styles.headerSubtitle}>
-            Usuario: {user?.name} ({user?.role || 'ASESOR'})
+            Usuario: {user?.name} ({user?.role || 'ADMINISTRADOR'})
           </Text>
         </View>
       </View>
@@ -104,17 +137,17 @@ export const AdminMenuScreen: React.FC<Props> = ({ navigation }) => {
         {menuSections.map((section, sIdx) => (
           <View key={sIdx} style={styles.sectionWrap}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{section.title}</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>{section.subtitle}</Text>
             </View>
 
-            <View style={styles.cardsWrap}>
+            <View style={[styles.cardsWrap, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
               {section.items.map((item, iIdx) => {
                 const Icon = item.icon;
                 return (
                   <TouchableOpacity
                     key={iIdx}
-                    style={styles.menuCard}
+                    style={[styles.menuCard, { borderBottomColor: colors.borderSubtle }]}
                     activeOpacity={0.7}
                     onPress={() => navigation.navigate(item.screen)}
                   >
@@ -122,10 +155,10 @@ export const AdminMenuScreen: React.FC<Props> = ({ navigation }) => {
                       <Icon size={24} color={item.color} />
                     </View>
                     <View style={styles.cardInfo}>
-                      <Text style={styles.cardTitle}>{item.title}</Text>
-                      <Text style={styles.cardDesc}>{item.desc}</Text>
+                      <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+                      <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>{item.desc}</Text>
                     </View>
-                    <ChevronRight size={20} color="#94A3B8" />
+                    <ChevronRight size={20} color={colors.textMuted} />
                   </TouchableOpacity>
                 );
               })}
@@ -134,8 +167,8 @@ export const AdminMenuScreen: React.FC<Props> = ({ navigation }) => {
         ))}
 
         <View style={styles.footerNote}>
-          <ShieldCheck size={16} color="#64748B" />
-          <Text style={styles.footerText}>
+          <ShieldCheck size={16} color={colors.textMuted} />
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>
             Todos los cambios se reflejan instantáneamente en el backend y la web.
           </Text>
         </View>

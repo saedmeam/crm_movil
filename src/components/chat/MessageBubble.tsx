@@ -11,6 +11,7 @@ import { Check, CheckCheck, FileText, Lock } from 'lucide-react-native';
 import { Message } from '../../types';
 import { AudioPlayerBubble } from './AudioPlayerBubble';
 import { resolveMediaUrl } from '../../config/env';
+import { useTheme } from '../../context/ThemeContext';
 
 interface MessageBubbleProps {
   message: Message;
@@ -21,6 +22,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   onImagePress,
 }) => {
+  const { isDark, colors } = useTheme();
   const senderTypeUpper = String(message.senderType || '').toUpperCase();
   const isAgent = senderTypeUpper === 'AGENT';
   const isInternalNote = message.isInternalNote || message.isInternal || senderTypeUpper === 'INTERNAL' || message.type === 'internal_note';
@@ -66,8 +68,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           isInternalNote
             ? styles.internalNoteBubble
             : isAgent
-            ? styles.agentBubble
-            : styles.clientBubble,
+            ? [styles.agentBubble, { backgroundColor: colors.bubbleAgent }]
+            : [styles.clientBubble, { backgroundColor: colors.bubbleClient }],
         ]}
       >
         {/* Distintivo de Nota Interna */}
@@ -104,15 +106,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {/* Contenido: Documento */}
         {message.type === 'document' && message.mediaUrl && (
           <TouchableOpacity
-            style={styles.documentContainer}
+            style={[styles.documentContainer, isDark && { backgroundColor: 'rgba(255,255,255,0.06)' }]}
             onPress={() => handleOpenLink(resolveMediaUrl(message.mediaUrl))}
           >
-            <FileText size={24} color="#075E54" />
+            <FileText size={24} color={isDark ? '#00A884' : '#075E54'} />
             <View style={styles.documentInfo}>
-              <Text style={styles.documentName} numberOfLines={1}>
+              <Text style={[styles.documentName, { color: colors.textPrimary }]} numberOfLines={1}>
                 {message.fileName || 'Documento adjunto'}
               </Text>
-              <Text style={styles.documentSub}>Toca para abrir</Text>
+              <Text style={[styles.documentSub, { color: colors.textSecondary }]}>Toca para abrir</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -122,6 +124,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <Text
             style={[
               styles.messageText,
+              { color: colors.textPrimary },
               isInternalNote && styles.internalNoteText,
             ]}
           >
@@ -131,7 +134,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Metadata de pie: Hora y Checks */}
         <View style={styles.metaRow}>
-          <Text style={styles.timeText}>{formatTime(message.createdAt)}</Text>
+          <Text style={[styles.timeText, { color: colors.textMuted }]}>{formatTime(message.createdAt)}</Text>
           {renderChecks()}
         </View>
       </View>

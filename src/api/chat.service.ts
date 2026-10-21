@@ -60,7 +60,12 @@ export const chatService = {
         unreadCount,
         isAssignedToMe,
         assignedUserId: item.assignedUserId,
+        assignedAgentName: item.assignedUser?.name || undefined,
         stage: item.stage,
+        channel: item.channel,
+        whatsappLineId: item.whatsappLineId,
+        whatsappLine: item.whatsappLine,
+        collaborators: item.collaborators || [],
         contact,
         messages: item.messages,
         _count: item._count,
@@ -171,5 +176,27 @@ export const chatService = {
   async markAsRead(conversationId: string): Promise<{ success: boolean }> {
     const response = await apiClient.put<{ success: boolean }>(`/api/conversations/${conversationId}/read`);
     return response.data;
+  },
+
+  // Asignar o liberar conversación
+  async assignConversation(conversationId: string, assignedUserId: string | null): Promise<any> {
+    const response = await apiClient.put(`/api/conversations/${conversationId}/assign`, {
+      assignedUserId,
+    });
+    return response.data;
+  },
+
+  // Actualizar colaboradores del chat
+  async updateCollaborators(conversationId: string, collaboratorIds: string[]): Promise<any> {
+    const response = await apiClient.put(`/api/conversations/${conversationId}/collaborators`, {
+      collaboratorIds,
+    });
+    return response.data;
+  },
+
+  // Obtener lista de agentes para asignar o colaborar
+  async getAgents(): Promise<Array<{ id: string; name: string; username?: string }>> {
+    const response = await apiClient.get<Array<{ id: string; name: string; username?: string }>>('/api/users/agents');
+    return response.data || [];
   },
 };

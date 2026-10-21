@@ -25,6 +25,7 @@ import {
   Lock,
 } from 'lucide-react-native';
 import { uploadService } from '../../api/upload.service';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ChatInputBarProps {
   onSendMessage: (payload: {
@@ -42,6 +43,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSendMessage,
   disabled = false,
 }) => {
+  const { isDark, colors } = useTheme();
   const [text, setText] = useState('');
   const [isInternalNoteMode, setIsInternalNoteMode] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -195,10 +197,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   };
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { backgroundColor: colors.chatBg }]}>
       {/* Menú Flotante de Adjuntos */}
       {showAttachMenu && (
-        <View style={styles.attachMenu}>
+        <View style={[styles.attachMenu, { backgroundColor: colors.surface }]}>
           <TouchableOpacity style={styles.attachItem} onPress={handleTakePhoto}>
             <View style={[styles.attachCircle, { backgroundColor: '#E91E63' }]}>
               <Camera size={22} color="#FFFFFF" />
@@ -217,6 +219,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       <View
         style={[
           styles.container,
+          { backgroundColor: colors.inputBg },
           isInternalNoteMode && styles.containerInternalNote,
         ]}
       >
@@ -226,19 +229,20 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           onPress={() => setShowAttachMenu(!showAttachMenu)}
           disabled={disabled || isRecording || isUploading}
         >
-          <Paperclip size={22} color="#54656F" />
+          <Paperclip size={22} color={colors.textSecondary} />
         </TouchableOpacity>
 
         {/* Alternador Nota Interna */}
         <TouchableOpacity
           style={[
             styles.internalToggle,
+            isDark && { backgroundColor: '#202C33' },
             isInternalNoteMode && styles.internalToggleActive,
           ]}
           onPress={() => setIsInternalNoteMode(!isInternalNoteMode)}
           disabled={disabled || isRecording}
         >
-          <Lock size={16} color={isInternalNoteMode ? '#854D0E' : '#64748B'} />
+          <Lock size={16} color={isInternalNoteMode ? '#854D0E' : colors.textSecondary} />
         </TouchableOpacity>
 
         {/* Input o Estado de Grabación */}
@@ -253,13 +257,13 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           </View>
         ) : (
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { color: colors.inputText }]}
             placeholder={
               isInternalNoteMode
                 ? 'Escribe una nota interna para el equipo...'
                 : 'Mensaje'
             }
-            placeholderTextColor="#8696A0"
+            placeholderTextColor={colors.textMuted}
             value={text}
             onChangeText={setText}
             multiline
