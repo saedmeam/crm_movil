@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Horustech CRM",
+    "slug": "horustech-crm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#075e54"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.horustech.crm",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Horustech CRM requiere acceso al micrófono para enviar notas de voz en los chats.",
+        "NSCameraUsageDescription": "Horustech CRM requiere acceso a la cámara para tomar fotografías y enviarlas como adjuntos.",
+        "NSPhotoLibraryUsageDescription": "Horustech CRM requiere acceso a tu galería para adjuntar imágenes y documentos a las conversaciones.",
+        "NSPhotoLibraryAddUsageDescription": "Horustech CRM requiere permisos para guardar imágenes descargadas en tu galería."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#075e54"
+      },
+      "package": "com.horustech.crm",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "usesCleartextTraffic": true
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Horustech CRM accede a tus fotos para enviarlas a tus clientes.",
+          "cameraPermission": "Horustech CRM accede a tu cámara para capturar fotos de soporte o productos."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Permite a Horustech CRM grabar notas de voz para tus clientes."
+        }
+      ]
+    ]
+  }
+}
