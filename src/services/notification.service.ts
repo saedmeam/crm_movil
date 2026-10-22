@@ -113,9 +113,8 @@ export const notificationService = {
           },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.MAX,
-          channelId: 'chat-messages',
         },
-        trigger: null, // trigger null = entrega inmediata
+        trigger: Platform.OS === 'android' ? { channelId: 'chat-messages' } as any : null,
       });
     } catch (error) {
       console.warn('[NotificationService] Error al disparar notificación local:', error);
