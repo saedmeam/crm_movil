@@ -4,7 +4,7 @@ import { Conversation, Message } from '../types';
 export interface SendMessagePayload {
   conversationId: string;
   content: string;
-  type?: 'text' | 'image' | 'audio' | 'document' | 'internal_note';
+  type?: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note';
   mediaUrl?: string;
   mediaDuration?: number;
   fileName?: string;
@@ -30,8 +30,12 @@ export const chatService = {
           lastMessageContent = 'Nota de voz';
         } else if (lastMsg.mediaType === 'IMAGE' || lastMsg.mediaUrl?.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
           lastMessageContent = 'Foto';
+        } else if (lastMsg.mediaType === 'VIDEO' || lastMsg.mediaUrl?.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+          lastMessageContent = 'Video';
+        } else if (lastMsg.mediaType === 'DOCUMENT_PDF' || lastMsg.mediaUrl?.match(/\.(pdf|doc|docx|xls|xlsx|txt)$/i)) {
+          lastMessageContent = 'Documento';
         } else if (lastMsg.mediaUrl) {
-          lastMessageContent = 'Archivo multimedia';
+          lastMessageContent = 'Archivo adjunto';
         }
       }
 
@@ -61,6 +65,7 @@ export const chatService = {
         isAssignedToMe,
         assignedUserId: item.assignedUserId,
         assignedAgentName: item.assignedUser?.name || undefined,
+        status: item.status,
         stage: item.stage,
         channel: item.channel,
         whatsappLineId: item.whatsappLineId,
@@ -81,7 +86,7 @@ export const chatService = {
     const rawList = response.data || [];
 
     return rawList.map((item: any): Message => {
-      let type: 'text' | 'image' | 'audio' | 'document' | 'internal_note' = 'text';
+      let type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note' = 'text';
       const mType = (item.mediaType || '').toUpperCase();
       const mUrl = item.mediaUrl || '';
 
@@ -89,9 +94,16 @@ export const chatService = {
         type = 'internal_note';
       } else if (mType === 'AUDIO' || mUrl.match(/\.(m4a|aac|mp3|ogg|wav)$/i)) {
         type = 'audio';
-      } else if (mType === 'IMAGE' || mUrl.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+      } else if (mType === 'VIDEO' || mUrl.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+        type = 'video';
+      } else if (mType === 'IMAGE' || mUrl.match(/\.(jpg|jpeg|png)$/i)) {
         type = 'image';
-      } else if (mType === 'DOCUMENT_PDF' || mUrl.match(/\.(pdf|doc|docx|xls|xlsx|txt)$/i)) {
+      } else if (mUrl.match(/\.gif$/i)) {
+        type = 'gif';
+      } else if (mUrl.match(/\.webp$/i)) {
+        // webp suele ser sticker en WhatsApp
+        type = 'sticker';
+      } else if (mType === 'DOCUMENT_PDF' || mType === 'DOCUMENT' || mUrl.match(/\.(pdf|doc|docx|xls|xlsx|txt|csv|zip|rar)$/i)) {
         type = 'document';
       }
 
@@ -119,7 +131,7 @@ export const chatService = {
         isInternalNote: item.isInternal || item.senderType === 'INTERNAL',
         senderName: item.senderName || item.author?.name,
       };
-    });
+    }).reverse();
   },
 
   // Enviar un mensaje de texto, multimedia o nota interna
@@ -144,9 +156,15 @@ export const chatService = {
     }
 
     let mediaType = 'TEXT';
-    if (payload.type === 'image') mediaType = 'IMAGE';
-    else if (payload.type === 'audio') mediaType = 'AUDIO';
-    else if (payload.type === 'document') mediaType = 'DOCUMENT_PDF';
+    if (payload.type === 'image' || payload.type === 'sticker' || payload.type === 'gif') {
+      mediaType = 'IMAGE';
+    } else if (payload.type === 'video') {
+      mediaType = 'VIDEO';
+    } else if (payload.type === 'audio') {
+      mediaType = 'AUDIO';
+    } else if (payload.type === 'document') {
+      mediaType = 'DOCUMENT_PDF';
+    }
 
     const response = await apiClient.post<any>(`/api/conversations/${payload.conversationId}/messages`, {
       content: payload.content,
@@ -165,6 +183,7 @@ export const chatService = {
       mediaType: msg.mediaType,
       mediaDuration: payload.mediaDuration,
       fileName: payload.fileName,
+      fileSize: payload.fileSize,
       status: msg.status || 'SENT',
       createdAt: msg.createdAt,
       isInternal: false,

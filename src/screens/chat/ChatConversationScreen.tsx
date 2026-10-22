@@ -109,7 +109,7 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
     const handleNewMessage = (payload: any) => {
       const convId = payload.conversationId || payload.conversation?.id;
       if (convId === currentConv.id) {
-        let type: 'text' | 'image' | 'audio' | 'document' | 'internal_note' = 'text';
+        let type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note' = 'text';
         const mType = (payload.mediaType || '').toUpperCase();
         const mUrl = payload.mediaUrl || '';
 
@@ -117,10 +117,18 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
           type = 'internal_note';
         } else if (mType === 'AUDIO' || mUrl.match(/\.(m4a|aac|mp3|ogg|wav)$/i)) {
           type = 'audio';
-        } else if (mType === 'IMAGE' || mUrl.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+        } else if (mType === 'VIDEO' || mUrl.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+          type = 'video';
+        } else if (mUrl.match(/\.gif$/i) || payload.type === 'gif') {
+          type = 'gif';
+        } else if (mUrl.match(/\.webp$/i) || payload.type === 'sticker') {
+          type = 'sticker';
+        } else if (mType === 'IMAGE' || mUrl.match(/\.(jpg|jpeg|png)$/i)) {
           type = 'image';
-        } else if (mType === 'DOCUMENT_PDF' || mUrl.match(/\.(pdf|doc|docx|xls|xlsx|txt)$/i)) {
+        } else if (mType === 'DOCUMENT_PDF' || mType === 'DOCUMENT' || mUrl.match(/\.(pdf|doc|docx|xls|xlsx|txt|csv|zip|rar)$/i)) {
           type = 'document';
+        } else if (payload.type === 'sticker' || (!mUrl && payload.content && payload.content.length <= 4 && /\p{Extended_Pictographic}/u.test(payload.content))) {
+          type = 'sticker';
         }
 
         const formattedMsg: Message = {
@@ -168,13 +176,14 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
     };
   }, [socket, currentConv.id]);
 
-  // Enviar mensaje de texto, foto o nota de voz
+  // Enviar mensaje de texto, foto, audio, video, documento, sticker, gif o nota de voz
   const handleSendMessage = async (payload: {
     content: string;
-    type: 'text' | 'image' | 'audio' | 'internal_note';
+    type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note';
     mediaUrl?: string;
     mediaDuration?: number;
     fileName?: string;
+    fileSize?: number;
     isInternalNote?: boolean;
   }) => {
     try {
@@ -185,10 +194,14 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
         mediaUrl: payload.mediaUrl,
         mediaDuration: payload.mediaDuration,
         fileName: payload.fileName,
+        fileSize: payload.fileSize,
         isInternalNote: payload.isInternalNote,
       });
 
-      setMessages((prev) => [newMsg, ...prev]);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === newMsg.id)) return prev;
+        return [newMsg, ...prev];
+      });
     } catch (err: any) {
       console.error('[ChatConversation] Error enviando mensaje:', err);
     }

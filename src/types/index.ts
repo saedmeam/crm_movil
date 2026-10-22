@@ -7,7 +7,7 @@ export interface User {
   phone?: string;
 }
 
-export type MessageType = 'text' | 'image' | 'audio' | 'document' | 'internal_note';
+export type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note';
 export type MessageStatus = 'SENT' | 'DELIVERED' | 'READ';
 
 export interface Message {
@@ -44,6 +44,7 @@ export interface Conversation {
   isAssignedToMe?: boolean;
   assignedAgentName?: string;
   assignedUserId?: string | null;
+  status?: string; // 'OPEN' | 'PENDING' | 'CLOSED' etc.
   stage?: string;
   channel?: string;
   whatsappLineId?: string | null;

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -25,6 +26,7 @@ import {
   Sliders,
   Moon,
   Sun,
+  ChevronDown,
 } from 'lucide-react-native';
 import { AppStackParamList } from '../../navigation/types';
 import { Conversation, MessageStatus } from '../../types';
@@ -40,7 +42,7 @@ interface Props {
   navigation: ChatListNavigationProp;
 }
 
-type TabFilter = 'all' | 'unread' | 'my_chats';
+type TabFilter = 'ALL' | 'UNREAD' | 'ASSIGNED_TO_ME' | 'UNASSIGNED' | 'OPEN' | 'PENDING' | 'CLOSED';
 
 export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -50,7 +52,8 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<TabFilter>('all');
+  const [activeTab, setActiveTab] = useState<TabFilter>('ALL');
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -147,25 +150,44 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     };
   }, [socket, fetchConversations]);
 
-  // Filtros de búsqueda y pestañas
+  // Filtros de búsqueda y pestañas idénticos a la app web
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
-      const matchesSearch =
-        c.contactName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.contactPhone?.includes(searchQuery) ||
-        c.companyName?.toLowerCase().includes(searchQuery.toLowerCase());
+      // 1. Búsqueda por texto (nombre, teléfono, empresa, mensaje)
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const contactName = (c.contactName || c.contact?.name || '').toLowerCase();
+        const contactPhone = (c.contactPhone || c.contact?.phone || '').toLowerCase();
+        const companyName = (c.companyName || c.contact?.institution || '').toLowerCase();
+        const lastMsg = (c.lastMessage || '').toLowerCase();
+        const lineName = (c.whatsappLine?.name || '').toLowerCase();
 
-      if (!matchesSearch) return false;
+        const matches =
+          contactName.includes(q) ||
+          contactPhone.includes(q) ||
+          companyName.includes(q) ||
+          lastMsg.includes(q) ||
+          lineName.includes(q);
 
-      if (activeTab === 'unread') {
-        return (c.unreadCount || 0) > 0;
+        if (!matches) return false;
       }
-      if (activeTab === 'my_chats') {
-        return c.isAssignedToMe === true;
+
+      // 2. Filtro de pestañas
+      if (activeTab === 'UNREAD') {
+        return (c.unreadCount || 0) > 0 || (c._count?.messages || 0) > 0;
       }
-      return true;
+      if (activeTab === 'ASSIGNED_TO_ME') {
+        return c.assignedUserId === user?.id || c.isAssignedToMe === true;
+      }
+      if (activeTab === 'UNASSIGNED') {
+        return !c.assignedUserId;
+      }
+      if (activeTab === 'OPEN' || activeTab === 'PENDING' || activeTab === 'CLOSED') {
+        return c.status === activeTab;
+      }
+      return true; // 'ALL'
     });
-  }, [conversations, searchQuery, activeTab]);
+  }, [conversations, searchQuery, activeTab, user?.id]);
 
   const renderStatusCheck = (status?: MessageStatus, senderType?: string) => {
     if (senderType !== 'agent') return null;
@@ -332,64 +354,157 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Tabs de Filtro */}
-      <View style={[styles.tabsContainer, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
-            activeTab === 'all' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
-          ]}
-          onPress={() => setActiveTab('all')}
+      {/* Tabs de Filtro Idénticos al Aplicativo Web */}
+      <View style={[styles.tabsWrapper, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsScrollContent}
         >
-          <Text
+          {/* Todos */}
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              { color: colors.textSecondary },
-              activeTab === 'all' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+              styles.tabButton,
+              { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+              activeTab === 'ALL' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
             ]}
+            onPress={() => setActiveTab('ALL')}
           >
-            Todos
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.tabText,
+                { color: colors.textSecondary },
+                activeTab === 'ALL' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+              ]}
+            >
+              Todos
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
-            activeTab === 'unread' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
-          ]}
-          onPress={() => setActiveTab('unread')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: colors.textSecondary },
-              activeTab === 'unread' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
-            ]}
-          >
-            No leídos
-          </Text>
-        </TouchableOpacity>
+          {/* No leídos con contador */}
+          {(() => {
+            const unreadTotal = conversations.filter(
+              (c) => (c.unreadCount || 0) > 0 || (c._count?.messages || 0) > 0
+            ).length;
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.tabButton,
+                  { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+                  activeTab === 'UNREAD' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
+                ]}
+                onPress={() => setActiveTab('UNREAD')}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: colors.textSecondary },
+                    activeTab === 'UNREAD' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+                  ]}
+                >
+                  {`No leídos${unreadTotal > 0 ? ` (${unreadTotal})` : ''}`}
+                </Text>
+              </TouchableOpacity>
+            );
+          })()}
 
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
-            activeTab === 'my_chats' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
-          ]}
-          onPress={() => setActiveTab('my_chats')}
-        >
-          <Text
+          {/* Asignados */}
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              { color: colors.textSecondary },
-              activeTab === 'my_chats' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+              styles.tabButton,
+              { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+              activeTab === 'ASSIGNED_TO_ME' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
             ]}
+            onPress={() => setActiveTab('ASSIGNED_TO_ME')}
           >
-            Mis Chats
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.tabText,
+                { color: colors.textSecondary },
+                activeTab === 'ASSIGNED_TO_ME' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+              ]}
+            >
+              Asignados
+            </Text>
+          </TouchableOpacity>
+
+          {/* Sin asignar */}
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+              activeTab === 'UNASSIGNED' && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
+            ]}
+            onPress={() => setActiveTab('UNASSIGNED')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: colors.textSecondary },
+                activeTab === 'UNASSIGNED' && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+              ]}
+            >
+              Sin asignar
+            </Text>
+          </TouchableOpacity>
+
+          {/* Más (Abiertos / Pendientes / Cerrados) */}
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              styles.tabButtonWithIcon,
+              { backgroundColor: isDark ? '#202C33' : '#F1F5F9' },
+              ['OPEN', 'PENDING', 'CLOSED'].includes(activeTab) && (isDark ? { backgroundColor: 'rgba(0,168,132,0.2)' } : styles.tabButtonActive),
+            ]}
+            onPress={() => setShowStatusPicker(!showStatusPicker)}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: colors.textSecondary },
+                ['OPEN', 'PENDING', 'CLOSED'].includes(activeTab) && (isDark ? { color: '#00A884', fontWeight: '700' } : styles.tabTextActive),
+              ]}
+            >
+              {activeTab === 'OPEN'
+                ? 'Abiertos'
+                : activeTab === 'PENDING'
+                ? 'Pendientes'
+                : activeTab === 'CLOSED'
+                ? 'Cerrados'
+                : 'Más'}
+            </Text>
+            <ChevronDown size={14} color={colors.textSecondary} style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Menú desplegable para 'Más' */}
+        {showStatusPicker && (
+          <View style={[styles.statusDropdown, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+            {(['OPEN', 'PENDING', 'CLOSED'] as TabFilter[]).map((st) => (
+              <TouchableOpacity
+                key={st}
+                style={[
+                  styles.statusDropdownItem,
+                  activeTab === st && { backgroundColor: isDark ? '#2A3942' : '#F1F5F9' },
+                ]}
+                onPress={() => {
+                  setActiveTab(st);
+                  setShowStatusPicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.statusDropdownText,
+                    { color: colors.textPrimary },
+                    activeTab === st && { color: colors.primary, fontWeight: '700' },
+                  ]}
+                >
+                  {st === 'OPEN' ? 'Abiertos' : st === 'PENDING' ? 'Pendientes' : 'Cerrados'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* Lista de Chats con FlashList */}
@@ -495,19 +610,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
   },
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 10,
+  tabsWrapper: {
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    position: 'relative',
+    zIndex: 10,
+  },
+  tabsScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tabButton: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: '#F1F5F9',
+  },
+  tabButtonWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tabButtonActive: {
     backgroundColor: '#E8F5E9',
@@ -520,6 +644,31 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#075E54',
     fontWeight: '700',
+  },
+  statusDropdown: {
+    position: 'absolute',
+    top: 48,
+    right: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 50,
+    minWidth: 130,
+  },
+  statusDropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  statusDropdownText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   chatItem: {
     flexDirection: 'row',

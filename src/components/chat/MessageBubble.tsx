@@ -80,8 +80,85 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </View>
         )}
 
-        {/* Contenido: Imagen */}
-        {message.type === 'image' && message.mediaUrl && (
+        {/* Contenido: Sticker / Emoji Gigante */}
+        {message.type === 'sticker' && (
+          <View style={styles.stickerContainer}>
+            {message.mediaUrl ? (
+              <Image
+                source={{ uri: resolveMediaUrl(message.mediaUrl) }}
+                style={styles.stickerImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <Text style={styles.stickerEmoji}>{message.content}</Text>
+            )}
+          </View>
+        )}
+
+        {/* Contenido: Imagen o GIF */}
+        {(message.type === 'image' || message.type === 'gif') && message.mediaUrl && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => onImagePress?.(resolveMediaUrl(message.mediaUrl))}
+          >
+            <Image
+              source={{ uri: resolveMediaUrl(message.mediaUrl) }}
+              style={styles.imageThumbnail}
+              resizeMode="cover"
+            />
+            {message.type === 'gif' && (
+              <View style={styles.gifBadge}>
+                <Text style={styles.gifBadgeText}>GIF</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Contenido: Video */}
+        {(message.type === 'video' || (!['audio', 'document', 'sticker', 'gif', 'image'].includes(message.type) && message.mediaUrl && message.mediaUrl.match(/\.(mp4|mov|avi|mkv|webm)$/i))) && message.mediaUrl && (
+          <TouchableOpacity
+            style={styles.videoContainer}
+            activeOpacity={0.9}
+            onPress={() => handleOpenLink(resolveMediaUrl(message.mediaUrl))}
+          >
+            <View style={styles.videoThumbnailPlaceholder}>
+              <View style={styles.videoPlayBtn}>
+                <Text style={{ color: '#FFFFFF', fontSize: 24, marginLeft: 3 }}>▶</Text>
+              </View>
+              <Text style={styles.videoPlayText}>Reproducir Video</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Contenido: Nota de Voz */}
+        {(message.type === 'audio' || (!['video', 'document', 'sticker', 'gif', 'image'].includes(message.type) && message.mediaUrl && message.mediaUrl.match(/\.(m4a|aac|mp3|ogg|wav)$/i))) && message.mediaUrl && (
+          <AudioPlayerBubble
+            mediaUrl={message.mediaUrl}
+            duration={message.mediaDuration}
+            isSender={isAgent}
+          />
+        )}
+
+        {/* Contenido: Documento */}
+        {(message.type === 'document' || (!['video', 'audio', 'sticker', 'gif', 'image'].includes(message.type) && message.mediaUrl && message.mediaUrl.match(/\.(pdf|doc|docx|xls|xlsx|txt|csv|zip|rar)$/i))) && message.mediaUrl && (
+          <TouchableOpacity
+            style={[styles.documentContainer, isDark && { backgroundColor: 'rgba(255,255,255,0.06)' }]}
+            onPress={() => handleOpenLink(resolveMediaUrl(message.mediaUrl))}
+          >
+            <FileText size={28} color={isDark ? '#00A884' : '#075E54'} />
+            <View style={styles.documentInfo}>
+              <Text style={[styles.documentName, { color: colors.textPrimary }]} numberOfLines={1}>
+                {message.fileName || (message.mediaUrl ? message.mediaUrl.split('/').pop() : 'Documento adjunto')}
+              </Text>
+              <Text style={[styles.documentSub, { color: colors.textSecondary }]}>
+                {message.fileSize ? `${Math.round(message.fileSize / 1024)} KB • ` : ''}Toca para abrir
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Contenido: Fallback para Imagen si mediaUrl no cayó en los anteriores */}
+        {message.type !== 'image' && message.type !== 'gif' && message.type !== 'video' && message.type !== 'audio' && message.type !== 'document' && message.type !== 'sticker' && message.mediaUrl && (
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => onImagePress?.(resolveMediaUrl(message.mediaUrl))}
@@ -94,37 +171,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Contenido: Nota de Voz */}
-        {message.type === 'audio' && message.mediaUrl && (
-          <AudioPlayerBubble
-            mediaUrl={message.mediaUrl}
-            duration={message.mediaDuration}
-            isSender={isAgent}
-          />
-        )}
-
-        {/* Contenido: Documento */}
-        {message.type === 'document' && message.mediaUrl && (
-          <TouchableOpacity
-            style={[styles.documentContainer, isDark && { backgroundColor: 'rgba(255,255,255,0.06)' }]}
-            onPress={() => handleOpenLink(resolveMediaUrl(message.mediaUrl))}
-          >
-            <FileText size={24} color={isDark ? '#00A884' : '#075E54'} />
-            <View style={styles.documentInfo}>
-              <Text style={[styles.documentName, { color: colors.textPrimary }]} numberOfLines={1}>
-                {message.fileName || 'Documento adjunto'}
-              </Text>
-              <Text style={[styles.documentSub, { color: colors.textSecondary }]}>Toca para abrir</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Contenido: Texto */}
-        {message.content ? (
+        {/* Contenido: Texto o Caption (si no es sticker solo de emoji ni placeholder redundante) */}
+        {message.content && 
+         message.type !== 'sticker' && 
+         !(message.mediaUrl && ['foto', 'video', 'nota de voz', 'documento', 'documento adjunto', 'archivo adjunto'].includes(message.content.trim().toLowerCase())) ? (
           <Text
             style={[
               styles.messageText,
               { color: colors.textPrimary },
+              message.mediaUrl ? { marginTop: 6 } : undefined,
               isInternalNote && styles.internalNoteText,
             ]}
           >
@@ -246,5 +301,64 @@ const styles = StyleSheet.create({
   },
   checkIcon: {
     marginLeft: 3,
+  },
+  stickerContainer: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stickerImage: {
+    width: 140,
+    height: 140,
+  },
+  stickerEmoji: {
+    fontSize: 52,
+    lineHeight: 60,
+  },
+  gifBadge: {
+    position: 'absolute',
+    bottom: 12,
+    left: 8,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  gifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  videoContainer: {
+    width: 240,
+    height: 150,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
+    marginBottom: 6,
+  },
+  videoThumbnailPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+  },
+  videoPlayBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    marginBottom: 8,
+  },
+  videoPlayText: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

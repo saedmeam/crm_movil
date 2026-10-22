@@ -56,7 +56,8 @@
         {
           "microphonePermission": "Permite a Horustech CRM grabar notas de voz para tus clientes."
         }
-      ]
+      ],
+      "expo-video"
     ]
   }
 }

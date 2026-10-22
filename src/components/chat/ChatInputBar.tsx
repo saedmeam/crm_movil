@@ -15,14 +15,19 @@ import {
   setAudioModeAsync,
 } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   Send,
   Mic,
   Paperclip,
   Camera,
   Image as ImageIcon,
+  Video as VideoIcon,
+  FileText,
+  Smile,
   Square,
   Lock,
+  X,
 } from 'lucide-react-native';
 import { uploadService } from '../../api/upload.service';
 import { useTheme } from '../../context/ThemeContext';
@@ -30,10 +35,11 @@ import { useTheme } from '../../context/ThemeContext';
 interface ChatInputBarProps {
   onSendMessage: (payload: {
     content: string;
-    type: 'text' | 'image' | 'audio' | 'internal_note';
+    type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note';
     mediaUrl?: string;
     mediaDuration?: number;
     fileName?: string;
+    fileSize?: number;
     isInternalNote?: boolean;
   }) => Promise<void>;
   disabled?: boolean;
@@ -49,8 +55,33 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showStickerMenu, setShowStickerMenu] = useState(false);
 
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
+  // Lista de emojis y stickers rápidos corporativos
+  const quickStickers = [
+    '👍', '👋', '🤝', '✅', '❤️', '🔥', '🎉', '🙏', 
+    '💼', '📊', '📞', '⏳', '⭐', '🚀', '💯', '😊'
+  ];
+
+  // Configuración de grabación compatible con WhatsApp (.m4a AAC)
+  const voiceRecordingOptions = {
+    ...RecordingPresets.HIGH_QUALITY,
+    extension: '.m4a',
+    sampleRate: 44100,
+    numberOfChannels: 1, // Mono para notas de voz optimizadas
+    bitRate: 64000,
+    android: {
+      extension: '.m4a',
+      outputFormat: 'mpeg4' as const,
+      audioEncoder: 'aac' as const,
+    },
+    ios: {
+      ...RecordingPresets.HIGH_QUALITY.ios,
+      extension: '.m4a',
+    },
+  };
+
+  const recorder = useAudioRecorder(voiceRecordingOptions as any, (status) => {
     // Escucha de estado de grabación
   });
 
@@ -69,7 +100,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     });
   };
 
-  // Adjuntar Foto desde Galería
+  // Adjuntar Foto desde Galería (Soporta JPG, PNG, GIF)
   const handlePickImage = async () => {
     setShowAttachMenu(false);
     try {
@@ -81,8 +112,47 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        quality: 0.7, // Compresión previa al envío
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const isGif = asset.mimeType === 'image/gif' || asset.fileName?.toLowerCase().endsWith('.gif');
+        setIsUploading(true);
+        const uploadRes = await uploadService.uploadFile(
+          asset.uri,
+          asset.fileName || (isGif ? `gif_${Date.now()}.gif` : `foto_${Date.now()}.jpg`),
+          asset.mimeType || (isGif ? 'image/gif' : 'image/jpeg')
+        );
+
+        await onSendMessage({
+          content: 'Foto',
+          type: isGif ? 'gif' : 'image',
+          mediaUrl: uploadRes.url,
+          fileName: uploadRes.filename,
+        });
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'No se pudo subir la imagen.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Adjuntar Video desde Galería o Cámara
+  const handlePickVideo = async () => {
+    setShowAttachMenu(false);
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert('Permiso Denegado', 'Se requiere acceso a los videos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: false,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -90,19 +160,52 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         setIsUploading(true);
         const uploadRes = await uploadService.uploadFile(
           asset.uri,
-          asset.fileName || `foto_${Date.now()}.jpg`,
-          asset.mimeType || 'image/jpeg'
+          asset.fileName || `video_${Date.now()}.mp4`,
+          asset.mimeType || 'video/mp4'
         );
 
         await onSendMessage({
-          content: '',
-          type: 'image',
+          content: 'Video',
+          type: 'video',
           mediaUrl: uploadRes.url,
           fileName: uploadRes.filename,
         });
       }
     } catch (err: any) {
-      Alert.alert('Error', 'No se pudo subir la imagen.');
+      Alert.alert('Error', 'No se pudo subir el video.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Adjuntar Documento o Archivo (.pdf, .doc, .docx, .xls, .xlsx, .zip, etc.)
+  const handlePickDocument = async () => {
+    setShowAttachMenu(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setIsUploading(true);
+        const uploadRes = await uploadService.uploadFile(
+          asset.uri,
+          asset.name || `doc_${Date.now()}.pdf`,
+          asset.mimeType || 'application/octet-stream'
+        );
+
+        await onSendMessage({
+          content: asset.name || 'Documento adjunto',
+          type: 'document',
+          mediaUrl: uploadRes.url,
+          fileName: asset.name || uploadRes.filename,
+          fileSize: asset.size,
+        });
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'No se pudo seleccionar el documento.');
     } finally {
       setIsUploading(false);
     }
@@ -132,7 +235,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         );
 
         await onSendMessage({
-          content: '',
+          content: 'Foto',
           type: 'image',
           mediaUrl: uploadRes.url,
           fileName: uploadRes.filename,
@@ -178,12 +281,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         setIsUploading(true);
         const uploadRes = await uploadService.uploadFile(
           uri,
-          `nota_voz_${Date.now()}.m4a`,
-          'audio/m4a'
+          `voice_note_${Date.now()}.m4a`,
+          'audio/mp4'
         );
 
         await onSendMessage({
-          content: '',
+          content: 'Nota de voz',
           type: 'audio',
           mediaUrl: uploadRes.url,
           mediaDuration: 0,
@@ -201,17 +304,84 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       {/* Menú Flotante de Adjuntos */}
       {showAttachMenu && (
         <View style={[styles.attachMenu, { backgroundColor: colors.surface }]}>
+          {/* Cámara */}
           <TouchableOpacity style={styles.attachItem} onPress={handleTakePhoto}>
             <View style={[styles.attachCircle, { backgroundColor: '#E91E63' }]}>
               <Camera size={22} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
 
+          {/* Fotos / GIFs */}
           <TouchableOpacity style={styles.attachItem} onPress={handlePickImage}>
             <View style={[styles.attachCircle, { backgroundColor: '#9C27B0' }]}>
               <ImageIcon size={22} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
+
+          {/* Videos */}
+          <TouchableOpacity style={styles.attachItem} onPress={handlePickVideo}>
+            <View style={[styles.attachCircle, { backgroundColor: '#0284C7' }]}>
+              <VideoIcon size={22} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Documentos */}
+          <TouchableOpacity style={styles.attachItem} onPress={handlePickDocument}>
+            <View style={[styles.attachCircle, { backgroundColor: '#5B21B6' }]}>
+              <FileText size={22} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Stickers / Emojis */}
+          <TouchableOpacity
+            style={styles.attachItem}
+            onPress={() => {
+              setShowAttachMenu(false);
+              setShowStickerMenu(!showStickerMenu);
+            }}
+          >
+            <View style={[styles.attachCircle, { backgroundColor: '#F59E0B' }]}>
+              <Smile size={22} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Barra Rápida de Stickers / Emojis */}
+      {showStickerMenu && (
+        <View style={[styles.stickerBar, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+          <View style={styles.stickerHeader}>
+            <Smile size={16} color={colors.textSecondary} style={{ marginRight: 6 }} />
+            <TextInput
+              style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, flex: 1 }}
+              value="STICKERS Y REACCIONES RÁPIDAS"
+              editable={false}
+            />
+            <TouchableOpacity onPress={() => setShowStickerMenu(false)}>
+              <X size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.stickerRow}>
+            {quickStickers.map((stk, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.stickerBtn}
+                onPress={async () => {
+                  setShowStickerMenu(false);
+                  await onSendMessage({
+                    content: stk,
+                    type: 'sticker',
+                  });
+                }}
+              >
+                <TextInput
+                  style={{ fontSize: 26, textAlign: 'center' }}
+                  value={stk}
+                  editable={false}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       )}
 
@@ -226,10 +396,25 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         {/* Botón de Adjuntar */}
         <TouchableOpacity
           style={styles.iconButton}
-          onPress={() => setShowAttachMenu(!showAttachMenu)}
+          onPress={() => {
+            setShowStickerMenu(false);
+            setShowAttachMenu(!showAttachMenu);
+          }}
           disabled={disabled || isRecording || isUploading}
         >
           <Paperclip size={22} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {/* Botón de Stickers directo */}
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => {
+            setShowAttachMenu(false);
+            setShowStickerMenu(!showStickerMenu);
+          }}
+          disabled={disabled || isRecording || isUploading}
+        >
+          <Smile size={22} color={colors.textSecondary} />
         </TouchableOpacity>
 
         {/* Alternador Nota Interna */}
@@ -403,5 +588,37 @@ const styles = StyleSheet.create({
   },
   internalSendBtn: {
     backgroundColor: '#854D0E',
+  },
+  stickerBar: {
+    padding: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  stickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  stickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-around',
+    paddingVertical: 4,
+  },
+  stickerBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
   },
 });
