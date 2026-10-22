@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   View,
+  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -63,12 +64,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     '💼', '📊', '📞', '⏳', '⭐', '🚀', '💯', '😊'
   ];
 
-  // Configuración de grabación compatible con WhatsApp (.m4a AAC)
+  // Configuración de grabación compatible con WhatsApp y Android MediaRecorder (MPEG-4 AAC)
   const voiceRecordingOptions = {
     ...RecordingPresets.HIGH_QUALITY,
     extension: '.m4a',
     sampleRate: 44100,
-    numberOfChannels: 1, // Mono para notas de voz optimizadas
+    numberOfChannels: 1, // Mono para notas de voz
     bitRate: 64000,
     android: {
       extension: '.m4a',
@@ -248,12 +249,14 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     }
   };
 
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+
   // Iniciar Grabación de Voz con expo-audio
   const startRecording = async () => {
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permiso Denegado', 'Se requiere acceso al micrófono.');
+        Alert.alert('Permiso Denegado', 'Se requiere acceso al micrófono para grabar notas de voz.');
         return;
       }
 
@@ -264,9 +267,13 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
       await recorder.prepareToRecordAsync();
       recorder.record();
+      setRecordingStartTime(Date.now());
       setIsRecording(true);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Error iniciando grabación:', err);
+      Alert.alert('Error al grabar', err?.message || 'No se pudo iniciar la grabación de voz.');
+      setIsRecording(false);
+      setRecordingStartTime(null);
     }
   };
 
@@ -274,28 +281,39 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const stopRecordingAndSend = async () => {
     try {
       setIsRecording(false);
+      const startTime = recordingStartTime;
+      setRecordingStartTime(null);
+
       await recorder.stop();
       const uri = recorder.uri;
 
+      const calculatedDuration = startTime ? Math.round((Date.now() - startTime) / 1000) : 0;
+
       if (uri) {
         setIsUploading(true);
+        console.log('[ChatInputBar] Subiendo nota de voz:', uri, 'duración calculada:', calculatedDuration);
         const uploadRes = await uploadService.uploadFile(
           uri,
           `voice_note_${Date.now()}.m4a`,
           'audio/mp4'
         );
 
+        console.log('[ChatInputBar] Nota de voz subida con éxito:', uploadRes.url);
         await onSendMessage({
           content: 'Nota de voz',
           type: 'audio',
           mediaUrl: uploadRes.url,
-          mediaDuration: 0,
+          mediaDuration: calculatedDuration > 0 ? calculatedDuration : 1,
         });
+      } else {
+        Alert.alert('Aviso', 'No se grabó ningún contenido de audio.');
       }
-    } catch (err) {
-      Alert.alert('Error', 'No se pudo enviar la nota de voz.');
+    } catch (err: any) {
+      console.error('Error enviando nota de voz:', err);
+      Alert.alert('Error', err?.message || 'No se pudo enviar la nota de voz.');
     } finally {
       setIsUploading(false);
+      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
     }
   };
 
@@ -366,6 +384,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               <TouchableOpacity
                 key={idx}
                 style={styles.stickerBtn}
+                activeOpacity={0.7}
                 onPress={async () => {
                   setShowStickerMenu(false);
                   await onSendMessage({
@@ -374,11 +393,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                   });
                 }}
               >
-                <TextInput
-                  style={{ fontSize: 26, textAlign: 'center' }}
-                  value={stk}
-                  editable={false}
-                />
+                <Text
+                  style={{ fontSize: 28, textAlign: 'center', includeFontPadding: false }}
+                  allowFontScaling={false}
+                >
+                  {stk}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -615,8 +635,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   stickerBtn: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 8,

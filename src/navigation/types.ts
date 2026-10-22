@@ -16,6 +16,11 @@ export type AppStackParamList = {
     senderName?: string;
     timestamp?: string;
   };
+  VideoViewer: {
+    videoUrl: string;
+    senderName?: string;
+    timestamp?: string;
+  };
   AdminMenu: undefined;
   ParametersManagement: undefined;
   WhatsAppLinesManagement: undefined;

@@ -4,6 +4,7 @@ import { AppStackParamList } from './types';
 import { ChatListScreen } from '../screens/chat/ChatListScreen';
 import { ChatConversationScreen } from '../screens/chat/ChatConversationScreen';
 import { ImageViewerModal } from '../screens/chat/ImageViewerModal';
+import { VideoViewerModal } from '../screens/chat/VideoViewerModal';
 
 import { AdminMenuScreen } from '../screens/admin/AdminMenuScreen';
 import { ParametersManagementScreen } from '../screens/admin/ParametersManagementScreen';
@@ -27,6 +28,14 @@ export const AppNavigator = () => {
       <Stack.Screen
         name="ImageViewer"
         component={ImageViewerModal}
+        options={{
+          presentation: 'fullScreenModal',
+          animation: 'fade',
+        }}
+      />
+      <Stack.Screen
+        name="VideoViewer"
+        component={VideoViewerModal}
         options={{
           presentation: 'fullScreenModal',
           animation: 'fade',

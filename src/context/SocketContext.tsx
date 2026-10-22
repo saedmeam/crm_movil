@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { ENV } from '../config/env';
 import { Message, MessageStatus } from '../types';
+import { notificationService } from '../services/notification.service';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -17,6 +18,11 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const { token, user } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+
+  // Inicializar permisos y canal de notificaciones
+  useEffect(() => {
+    notificationService.setupNotifications();
+  }, []);
 
   useEffect(() => {
     if (!token || !user) {
@@ -46,6 +52,23 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       socketInstance.emit('join', `user:${user.id}`);
     });
 
+    // Escuchar mensajes entrantes a nivel global de la app para notificaciones push locales
+    socketInstance.on('new_message', (payload: any) => {
+      if (!payload) return;
+      const targetConvId = payload.conversationId || payload.conversation?.id;
+      if (!targetConvId) return;
+
+      notificationService.notifyIncomingMessage({
+        conversationId: targetConvId,
+        contactName: payload.contactName || payload.contact?.name,
+        phoneNumber: payload.phoneNumber || payload.contact?.phone,
+        content: payload.content,
+        mediaType: payload.mediaType,
+        mediaUrl: payload.mediaUrl,
+        senderType: payload.senderType,
+      });
+    });
+
     socketInstance.on('disconnect', (reason) => {
       console.log(`[Socket] Desconectado: ${reason}`);
       setIsConnected(false);
@@ -59,6 +82,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     setSocket(socketInstance);
 
     return () => {
+      socketInstance.off('new_message');
       socketInstance.disconnect();
     };
   }, [token, user?.id]);

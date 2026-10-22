@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { resolveMediaUrl } from '../../config/env';
+import { notificationService } from '../../services/notification.service';
 import { MessageBubble } from '../../components/chat/MessageBubble';
 import { ChatInputBar } from '../../components/chat/ChatInputBar';
 
@@ -53,6 +54,7 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
   const [currentConv, setCurrentConv] = useState<Conversation>(initialConversation);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const flashListRef = useRef<any>(null);
 
   // Modales
   const [showOptionsModal, setShowOptionsModal] = useState(false);
@@ -82,9 +84,11 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
   useEffect(() => {
     loadMessages();
     joinConversation(currentConv.id);
+    notificationService.setActiveConversation(currentConv.id);
 
     return () => {
       leaveConversation(currentConv.id);
+      notificationService.setActiveConversation(null);
     };
   }, [currentConv.id, loadMessages]);
 
@@ -154,6 +158,12 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
           return [formattedMsg, ...prev];
         });
 
+        setTimeout(() => {
+          try {
+            flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+          } catch {}
+        }, 100);
+
         chatService.markAsRead(currentConv.id).catch(() => {});
       }
     };
@@ -202,6 +212,12 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
         if (prev.some((m) => m.id === newMsg.id)) return prev;
         return [newMsg, ...prev];
       });
+
+      setTimeout(() => {
+        try {
+          flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        } catch {}
+      }, 100);
     } catch (err: any) {
       console.error('[ChatConversation] Error enviando mensaje:', err);
     }
@@ -420,6 +436,7 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
           </View>
         ) : (
           <FlashList
+            ref={flashListRef}
             data={messages}
             renderItem={({ item }) => (
               <MessageBubble
@@ -427,6 +444,12 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
                 onImagePress={(imgUrl) =>
                   navigation.navigate('ImageViewer', {
                     imageUrl: imgUrl,
+                    senderName: currentConv.contactName,
+                  })
+                }
+                onVideoPress={(videoUrl) =>
+                  navigation.navigate('VideoViewer', {
+                    videoUrl,
                     senderName: currentConv.contactName,
                   })
                 }

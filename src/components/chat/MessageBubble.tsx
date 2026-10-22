@@ -16,16 +16,19 @@ import { useTheme } from '../../context/ThemeContext';
 interface MessageBubbleProps {
   message: Message;
   onImagePress?: (imageUrl: string) => void;
+  onVideoPress?: (videoUrl: string) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   onImagePress,
+  onVideoPress,
 }) => {
   const { isDark, colors } = useTheme();
   const senderTypeUpper = String(message.senderType || '').toUpperCase();
   const isAgent = senderTypeUpper === 'AGENT';
   const isInternalNote = message.isInternalNote || message.isInternal || senderTypeUpper === 'INTERNAL' || message.type === 'internal_note';
+  const isEmojiSticker = message.type === 'sticker' && !message.mediaUrl;
 
   const formatTime = (dateStr: string) => {
     try {
@@ -67,6 +70,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           styles.bubble,
           isInternalNote
             ? styles.internalNoteBubble
+            : isEmojiSticker
+            ? [
+                styles.emojiStickerBubble,
+                isAgent ? { alignSelf: 'flex-end' } : { alignSelf: 'flex-start' }
+              ]
             : isAgent
             ? [styles.agentBubble, { backgroundColor: colors.bubbleAgent }]
             : [styles.clientBubble, { backgroundColor: colors.bubbleClient }],
@@ -84,13 +92,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {message.type === 'sticker' && (
           <View style={styles.stickerContainer}>
             {message.mediaUrl ? (
-              <Image
-                source={{ uri: resolveMediaUrl(message.mediaUrl) }}
-                style={styles.stickerImage}
-                resizeMode="contain"
-              />
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => onImagePress?.(resolveMediaUrl(message.mediaUrl))}
+              >
+                <Image
+                  source={{ uri: resolveMediaUrl(message.mediaUrl) }}
+                  style={styles.stickerImage}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
             ) : (
-              <Text style={styles.stickerEmoji}>{message.content}</Text>
+              <Text style={styles.stickerEmoji} allowFontScaling={false}>
+                {message.content}
+              </Text>
             )}
           </View>
         )}
@@ -119,7 +134,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <TouchableOpacity
             style={styles.videoContainer}
             activeOpacity={0.9}
-            onPress={() => handleOpenLink(resolveMediaUrl(message.mediaUrl))}
+            onPress={() => {
+              const fullUrl = resolveMediaUrl(message.mediaUrl);
+              if (onVideoPress) {
+                onVideoPress(fullUrl);
+              } else {
+                handleOpenLink(fullUrl);
+              }
+            }}
           >
             <View style={styles.videoThumbnailPlaceholder}>
               <View style={styles.videoPlayBtn}>
@@ -303,18 +325,30 @@ const styles = StyleSheet.create({
     marginLeft: 3,
   },
   stickerContainer: {
-    paddingVertical: 4,
-    paddingHorizontal: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   stickerImage: {
     width: 140,
     height: 140,
   },
   stickerEmoji: {
-    fontSize: 52,
-    lineHeight: 60,
+    fontSize: 48,
+    lineHeight: 56,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  emojiStickerBubble: {
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    elevation: 0,
+    borderWidth: 0,
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 2,
   },
   gifBadge: {
     position: 'absolute',
