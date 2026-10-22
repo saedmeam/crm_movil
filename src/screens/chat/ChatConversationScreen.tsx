@@ -111,8 +111,13 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
     if (!socket) return;
 
     const handleNewMessage = (payload: any) => {
-      const convId = payload.conversationId || payload.conversation?.id;
-      if (convId === currentConv.id) {
+      const convId = payload.conversationId || payload.conversation?.id || payload.conversationContext?.id;
+      const payloadPhone = payload.phoneNumber || payload.conversationContext?.contact?.phone || payload.contact?.phone;
+      const currentPhone = currentConv.contactPhone || currentConv.contact?.phone;
+      const isMatch = (convId && convId === currentConv.id) ||
+        (payloadPhone && currentPhone && payloadPhone.replace(/\D/g, '') === currentPhone.replace(/\D/g, ''));
+
+      if (isMatch) {
         let type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note' = 'text';
         const mType = (payload.mediaType || '').toUpperCase();
         const mUrl = payload.mediaUrl || '';
@@ -177,14 +182,22 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
       }
     };
 
+    const handleReconnect = () => {
+      console.log('[ChatConversation] Socket reconectado, recargando mensajes...');
+      loadMessages();
+      joinConversation(currentConv.id);
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('message_status_update', handleStatusUpdate);
+    socket.on('connect', handleReconnect);
 
     return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('message_status_update', handleStatusUpdate);
+      socket.off('connect', handleReconnect);
     };
-  }, [socket, currentConv.id]);
+  }, [socket, currentConv.id, loadMessages, joinConversation]);
 
   // Enviar mensaje de texto, foto, audio, video, documento, sticker, gif o nota de voz
   const handleSendMessage = async (payload: {

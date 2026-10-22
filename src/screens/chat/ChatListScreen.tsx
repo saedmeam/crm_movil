@@ -80,11 +80,19 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleNewMessage = (payload: any) => {
       // El backend emite el mensaje plano con conversationId en payload.conversationId
-      const targetConvId = payload.conversationId || payload.conversation?.id;
-      if (!targetConvId) return;
+      const targetConvId = payload.conversationId || payload.conversation?.id || payload.conversationContext?.id;
+      const payloadPhone = payload.phoneNumber || payload.conversationContext?.contact?.phone || payload.contact?.phone;
 
       setConversations((prev) => {
-        const index = prev.findIndex((c) => c.id === targetConvId);
+        const index = prev.findIndex((c) => {
+          if (targetConvId && c.id === targetConvId) return true;
+          if (payloadPhone) {
+            const cPhone = c.contactPhone || c.contact?.phone;
+            if (cPhone && cPhone.replace(/\D/g, '') === payloadPhone.replace(/\D/g, '')) return true;
+          }
+          return false;
+        });
+
         if (index === -1) {
           // Si no existía en el listado actual, recargamos
           fetchConversations();
@@ -139,14 +147,21 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
       );
     };
 
+    const handleReconnect = () => {
+      console.log('[ChatList] Socket reconectado, recargando conversaciones...');
+      fetchConversations();
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('message_status_update', handleStatusUpdate);
     socket.on('conversation_read', handleConversationRead);
+    socket.on('connect', handleReconnect);
 
     return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('message_status_update', handleStatusUpdate);
       socket.off('conversation_read', handleConversationRead);
+      socket.off('connect', handleReconnect);
     };
   }, [socket, fetchConversations]);
 

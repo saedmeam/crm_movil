@@ -64,21 +64,25 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     '💼', '📊', '📞', '⏳', '⭐', '🚀', '💯', '😊'
   ];
 
-  // Configuración de grabación compatible con WhatsApp y Android MediaRecorder (MPEG-4 AAC)
+  // Configuración de grabación compatible con WhatsApp y Android MediaRecorder (MPEG-4 AAC / 16kHz mono / 32kbps)
   const voiceRecordingOptions = {
     ...RecordingPresets.HIGH_QUALITY,
     extension: '.m4a',
-    sampleRate: 44100,
+    sampleRate: 16000,
     numberOfChannels: 1, // Mono para notas de voz
-    bitRate: 64000,
+    bitRate: 32000,
     android: {
       extension: '.m4a',
       outputFormat: 'mpeg4' as const,
       audioEncoder: 'aac' as const,
+      sampleRate: 16000,
+      bitRate: 32000,
     },
     ios: {
       ...RecordingPresets.HIGH_QUALITY.ios,
       extension: '.m4a',
+      sampleRate: 16000,
+      bitRate: 32000,
     },
   };
 

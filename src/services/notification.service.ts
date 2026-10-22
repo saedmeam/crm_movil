@@ -112,6 +112,8 @@ export const notificationService = {
             conversationId: payload.conversationId,
           },
           sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          channelId: 'chat-messages',
         },
         trigger: null, // trigger null = entrega inmediata
       });
