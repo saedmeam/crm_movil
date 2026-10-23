@@ -161,7 +161,6 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     socket.on('new_message', handleNewMessage);
-    socket.on('new_message_alert', handleNewMessage);
     socket.on('new_conversation', handleNewConversation);
     socket.on('message_status_update', handleStatusUpdate);
     socket.on('conversation_read', handleConversationRead);
@@ -169,7 +168,6 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
 
     return () => {
       socket.off('new_message', handleNewMessage);
-      socket.off('new_message_alert', handleNewMessage);
       socket.off('new_conversation', handleNewConversation);
       socket.off('message_status_update', handleStatusUpdate);
       socket.off('conversation_read', handleConversationRead);
