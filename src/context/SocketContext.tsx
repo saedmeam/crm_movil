@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { ENV } from '../config/env';
@@ -54,21 +55,33 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     });
 
     // Escuchar mensajes entrantes a nivel global de la app para notificaciones push locales
-    socketInstance.on('new_message', (payload: any) => {
+    const handleIncomingMessageNotification = (payload: any) => {
       if (!payload) return;
-      const targetConvId = payload.conversationId || payload.conversation?.id;
+      const targetConvId =
+        payload.conversationId ||
+        payload.conversation?.id ||
+        payload.conversationContext?.id;
       if (!targetConvId) return;
 
       notificationService.notifyIncomingMessage({
+        messageId: payload.id,
         conversationId: targetConvId,
-        contactName: payload.contactName || payload.contact?.name,
-        phoneNumber: payload.phoneNumber || payload.contact?.phone,
+        contactName:
+          payload.contactName ||
+          payload.conversationContext?.contact?.name ||
+          payload.contact?.name,
+        phoneNumber:
+          payload.phoneNumber ||
+          payload.conversationContext?.contact?.phone ||
+          payload.contact?.phone,
         content: payload.content,
         mediaType: payload.mediaType,
         mediaUrl: payload.mediaUrl,
         senderType: payload.senderType,
       });
-    });
+    };
+
+    socketInstance.on('new_message', handleIncomingMessageNotification);
 
     socketInstance.on('disconnect', (reason) => {
       console.log(`[Socket] Desconectado: ${reason}`);
@@ -82,8 +95,19 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     setSocket(socketInstance);
 
+    // Mantener la conexión viva y reconectar inmediatamente al volver al primer plano
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        if (!socketInstance.connected) {
+          console.log('[Socket] App volvió a primer plano, reconectando socket...');
+          socketInstance.connect();
+        }
+      }
+    });
+
     return () => {
-      socketInstance.off('new_message');
+      subscription.remove();
+      socketInstance.off('new_message', handleIncomingMessageNotification);
       socketInstance.disconnect();
     };
   }, [token, user?.id]);

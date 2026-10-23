@@ -64,19 +64,18 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     '💼', '📊', '📞', '⏳', '⭐', '🚀', '💯', '😊'
   ];
 
-  // Configuración de grabación compatible con WhatsApp y Android MediaRecorder (MPEG-4 AAC / 16kHz mono / 32kbps)
+  // Configuración de grabación compatible con WhatsApp PTT (ADTS AAC / stream de audio puro)
   const voiceRecordingOptions = {
     ...RecordingPresets.HIGH_QUALITY,
-    extension: '.m4a',
+    extension: '.aac',
     sampleRate: 16000,
-    numberOfChannels: 1, // Mono para notas de voz
+    numberOfChannels: 1,
     bitRate: 32000,
     android: {
-      extension: '.m4a',
-      outputFormat: 'mpeg4' as const,
+      extension: '.aac',
+      outputFormat: 'aac_adts' as const,
       audioEncoder: 'aac' as const,
       sampleRate: 16000,
-      bitRate: 32000,
     },
     ios: {
       ...RecordingPresets.HIGH_QUALITY.ios,
@@ -298,8 +297,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         console.log('[ChatInputBar] Subiendo nota de voz:', uri, 'duración calculada:', calculatedDuration);
         const uploadRes = await uploadService.uploadFile(
           uri,
-          `voice_note_${Date.now()}.m4a`,
-          'audio/mp4'
+          `voice_note_${Date.now()}.aac`,
+          'audio/aac'
         );
 
         console.log('[ChatInputBar] Nota de voz subida con éxito:', uploadRes.url);

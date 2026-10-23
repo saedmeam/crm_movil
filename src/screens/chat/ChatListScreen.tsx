@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FlashList } from '@shopify/flash-list';
 import {
@@ -70,9 +71,12 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+  // Al enfocar la pantalla, refrescar silenciosamente las conversaciones
+  useFocusEffect(
+    useCallback(() => {
+      fetchConversations();
+    }, [fetchConversations])
+  );
 
   // Escuchar eventos Socket.IO para actualizar la lista de chats en vivo
   useEffect(() => {
@@ -94,7 +98,7 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
         });
 
         if (index === -1) {
-          // Si no existía en el listado actual, recargamos
+          // Si es una conversación nueva no existente en el listado, recargamos
           fetchConversations();
           return prev;
         }
@@ -131,6 +135,10 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
       });
     };
 
+    const handleNewConversation = () => {
+      fetchConversations();
+    };
+
     const handleStatusUpdate = (payload: { conversationId: string; status: MessageStatus }) => {
       setConversations((prev) =>
         prev.map((c) =>
@@ -153,12 +161,16 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     socket.on('new_message', handleNewMessage);
+    socket.on('new_message_alert', handleNewMessage);
+    socket.on('new_conversation', handleNewConversation);
     socket.on('message_status_update', handleStatusUpdate);
     socket.on('conversation_read', handleConversationRead);
     socket.on('connect', handleReconnect);
 
     return () => {
       socket.off('new_message', handleNewMessage);
+      socket.off('new_message_alert', handleNewMessage);
+      socket.off('new_conversation', handleNewConversation);
       socket.off('message_status_update', handleStatusUpdate);
       socket.off('conversation_read', handleConversationRead);
       socket.off('connect', handleReconnect);

@@ -4,17 +4,18 @@ import * as Notifications from 'expo-notifications';
 // Configurar cómo se comportan las notificaciones cuando la app está en primer plano
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowAlert: false,
     shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
+    priority: Notifications.AndroidNotificationPriority.MAX,
   }),
 });
 
 let isConfigured = false;
 let activeConversationId: string | null = null;
+const recentlyNotifiedMessages = new Map<string, number>();
 
 export const notificationService = {
   /**
@@ -25,12 +26,12 @@ export const notificationService = {
 
     try {
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('chat-messages', {
+        await Notifications.setNotificationChannelAsync('chat-messages-v2', {
           name: 'Mensajes de Clientes',
-          importance: Notifications.AndroidImportance.HIGH,
+          importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#075E54',
-          sound: 'default',
+          sound: 'message',
           enableVibrate: true,
           showBadge: true,
         });
@@ -63,6 +64,7 @@ export const notificationService = {
    * Presenta una notificación local para un mensaje entrante
    */
   async notifyIncomingMessage(payload: {
+    messageId?: string;
     conversationId: string;
     contactName?: string;
     phoneNumber?: string;
@@ -80,6 +82,24 @@ export const notificationService = {
     const sType = String(payload.senderType || '').toUpperCase();
     if (sType === 'AGENT') {
       return;
+    }
+
+    // Evitar notificaciones duplicadas (por ejemplo si el backend emite múltiples eventos para el mismo mensaje)
+    const now = Date.now();
+    const dedupKey = payload.messageId || `${payload.conversationId}_${payload.content || payload.mediaUrl || ''}`;
+    const lastNotified = recentlyNotifiedMessages.get(dedupKey);
+    if (lastNotified && now - lastNotified < 10000) {
+      return;
+    }
+    recentlyNotifiedMessages.set(dedupKey, now);
+
+    // Limpiar periódicamente entradas antiguas del mapa (mayores a 30 segundos)
+    if (recentlyNotifiedMessages.size > 100) {
+      for (const [key, timestamp] of recentlyNotifiedMessages.entries()) {
+        if (now - timestamp > 30000) {
+          recentlyNotifiedMessages.delete(key);
+        }
+      }
     }
 
     const title = payload.contactName || payload.phoneNumber || 'Nuevo Mensaje';
@@ -105,16 +125,17 @@ export const notificationService = {
 
     try {
       await Notifications.scheduleNotificationAsync({
+        identifier: payload.messageId || undefined,
         content: {
           title,
           body,
           data: {
             conversationId: payload.conversationId,
           },
-          sound: 'default',
+          sound: 'message',
           priority: Notifications.AndroidNotificationPriority.MAX,
         },
-        trigger: Platform.OS === 'android' ? { channelId: 'chat-messages' } as any : null,
+        trigger: Platform.OS === 'android' ? { channelId: 'chat-messages-v2' } as any : null,
       });
     } catch (error) {
       console.warn('[NotificationService] Error al disparar notificación local:', error);
