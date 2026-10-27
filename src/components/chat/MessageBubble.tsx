@@ -7,11 +7,46 @@ import {
   StyleSheet,
   Linking,
 } from 'react-native';
-import { Check, CheckCheck, FileText, Lock } from 'lucide-react-native';
+import { Check, CheckCheck, FileText, Lock, User, Phone, MessageSquare } from 'lucide-react-native';
 import { Message } from '../../types';
 import { AudioPlayerBubble } from './AudioPlayerBubble';
 import { resolveMediaUrl } from '../../config/env';
 import { useTheme } from '../../context/ThemeContext';
+
+interface ParsedContact {
+  name: string;
+  phone: string;
+}
+
+function parseVCard(vcardStr: string): ParsedContact[] {
+  if (!vcardStr || !vcardStr.includes('BEGIN:VCARD')) return [];
+  const cards = vcardStr.split(/END:VCARD/i).filter(c => c.includes('BEGIN:VCARD'));
+  const results: ParsedContact[] = [];
+
+  for (const card of cards) {
+    let name = '';
+    let phone = '';
+
+    const fnMatch = card.match(/FN:(.*?)(?:\r?\n|$)/i);
+    if (fnMatch) {
+      name = fnMatch[1].trim();
+    }
+
+    const telMatch = card.match(/TEL[^:]*:(.*?)(?:\r?\n|$)/i);
+    if (telMatch) {
+      phone = telMatch[1].trim();
+    }
+
+    if (name || phone) {
+      results.push({
+        name: name || 'Contacto compartido',
+        phone: phone || ''
+      });
+    }
+  }
+
+  return results;
+}
 
 interface MessageBubbleProps {
   message: Message;
@@ -193,8 +228,60 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Contenido: Texto o Caption (si no es sticker solo de emoji ni placeholder redundante) */}
-        {message.content && 
+        {/* Contenido: Tarjeta de Contacto Compartido (vCard) */}
+        {message.content && message.content.includes('BEGIN:VCARD') ? (
+          <View style={styles.vcardWrapper}>
+            {parseVCard(message.content).map((contact, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.vcardCard,
+                  { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' },
+                  idx > 0 && { marginTop: 8 }
+                ]}
+              >
+                <View style={styles.vcardHeader}>
+                  <View style={[styles.vcardAvatar, { backgroundColor: isDark ? '#00A884' : '#075E54' }]}>
+                    <User size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.vcardInfo}>
+                    <Text style={[styles.vcardName, { color: colors.textPrimary }]} numberOfLines={1}>
+                      {contact.name}
+                    </Text>
+                    {contact.phone ? (
+                      <Text style={[styles.vcardPhone, { color: colors.textSecondary }]}>
+                        {contact.phone}
+                      </Text>
+                    ) : (
+                      <Text style={[styles.vcardPhone, { color: colors.textSecondary }]}>
+                        Contacto
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {contact.phone ? (
+                  <View style={styles.vcardActions}>
+                    <TouchableOpacity
+                      style={[styles.vcardBtn, { borderColor: isDark ? '#00A884' : '#075E54' }]}
+                      onPress={() => handleOpenLink(`tel:${contact.phone.replace(/[^+\d]/g, '')}`)}
+                    >
+                      <Phone size={14} color={isDark ? '#00A884' : '#075E54'} style={{ marginRight: 4 }} />
+                      <Text style={[styles.vcardBtnText, { color: isDark ? '#00A884' : '#075E54' }]}>Llamar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.vcardBtn, styles.vcardBtnPrimary, { backgroundColor: isDark ? '#00A884' : '#075E54' }]}
+                      onPress={() => handleOpenLink(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)}
+                    >
+                      <MessageSquare size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                      <Text style={[styles.vcardBtnText, { color: '#FFFFFF' }]}>Mensaje</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : message.content && 
          message.type !== 'sticker' && 
          !(message.mediaUrl && ['foto', 'video', 'nota de voz', 'documento', 'documento adjunto', 'archivo adjunto'].includes(message.content.trim().toLowerCase())) ? (
           <Text
@@ -392,6 +479,64 @@ const styles = StyleSheet.create({
   },
   videoPlayText: {
     color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  vcardWrapper: {
+    minWidth: 230,
+    maxWidth: 280,
+    marginVertical: 4,
+  },
+  vcardCard: {
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+  },
+  vcardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  vcardAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  vcardInfo: {
+    flex: 1,
+  },
+  vcardName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  vcardPhone: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  vcardActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+  },
+  vcardBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  vcardBtnPrimary: {
+    borderWidth: 0,
+  },
+  vcardBtnText: {
     fontSize: 12,
     fontWeight: '600',
   },
