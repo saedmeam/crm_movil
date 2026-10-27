@@ -25,7 +25,13 @@ export const chatService = {
       let lastMessageContent = '';
       if (lastMsg) {
         if (lastMsg.content) {
-          lastMessageContent = lastMsg.content;
+          if (lastMsg.content.includes('BEGIN:VCARD')) {
+            const fnMatch = lastMsg.content.match(/FN:(.*?)(?:\r?\n|$)/i);
+            const contactName = fnMatch ? fnMatch[1].trim() : '';
+            lastMessageContent = contactName ? `👤 Contacto: ${contactName}` : '👤 Contacto';
+          } else {
+            lastMessageContent = lastMsg.content;
+          }
         } else if (lastMsg.mediaType === 'AUDIO' || lastMsg.mediaUrl?.match(/\.(m4a|aac|mp3|ogg|wav)$/i)) {
           lastMessageContent = 'Nota de voz';
         } else if (lastMsg.mediaType === 'IMAGE' || lastMsg.mediaUrl?.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {

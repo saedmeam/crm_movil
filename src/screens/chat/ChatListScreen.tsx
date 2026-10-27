@@ -122,6 +122,10 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
           } else {
             content = 'Nuevo mensaje';
           }
+        } else if (content.includes('BEGIN:VCARD')) {
+          const fnMatch = content.match(/FN:(.*?)(?:\r?\n|$)/i);
+          const contactName = fnMatch ? fnMatch[1].trim() : '';
+          content = contactName ? `👤 Contacto: ${contactName}` : '👤 Contacto';
         }
         conv.lastMessage = content;
         conv.lastMessageTime = payload.createdAt || new Date().toISOString();

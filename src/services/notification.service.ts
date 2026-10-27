@@ -152,7 +152,11 @@ export const notificationService = {
     const title = payload.contactName || payload.phoneNumber || 'Nuevo Mensaje';
     let body = payload.content;
 
-    if (!body || body.trim().length === 0) {
+    if (body && body.includes('BEGIN:VCARD')) {
+      const fnMatch = body.match(/FN:(.*?)(?:\r?\n|$)/i);
+      const contactName = fnMatch ? fnMatch[1].trim() : '';
+      body = contactName ? `👤 Contacto: ${contactName}` : '👤 Contacto compartido';
+    } else if (!body || body.trim().length === 0) {
       const mType = String(payload.mediaType || '').toUpperCase();
       const mUrl = payload.mediaUrl || '';
       if (mType === 'AUDIO' || mUrl.match(/\.(m4a|aac|mp3|ogg|wav)$/i)) {
