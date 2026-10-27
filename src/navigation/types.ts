@@ -3,7 +3,7 @@ import { Conversation } from '../types';
 
 export type RootStackParamList = {
   Auth: undefined;
-  App: undefined;
+  App: NavigatorScreenParams<AppStackParamList> | undefined;
 };
 
 export type AppStackParamList = {

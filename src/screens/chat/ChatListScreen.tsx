@@ -160,6 +160,14 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
       );
     };
 
+    const handleConversationUnreadCount = (payload: { conversationId: string; unreadCount: number }) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === payload.conversationId ? { ...c, unreadCount: payload.unreadCount ?? 0 } : c
+        )
+      );
+    };
+
     const handleReconnect = () => {
       console.log('[ChatList] Socket reconectado, recargando conversaciones...');
       fetchConversations();
@@ -170,6 +178,7 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     socket.on('new_conversation', handleNewConversation);
     socket.on('message_status_update', handleStatusUpdate);
     socket.on('conversation_read', handleConversationRead);
+    socket.on('conversation_unread_count', handleConversationUnreadCount);
     socket.on('connect', handleReconnect);
 
     return () => {
@@ -178,6 +187,7 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
       socket.off('new_conversation', handleNewConversation);
       socket.off('message_status_update', handleStatusUpdate);
       socket.off('conversation_read', handleConversationRead);
+      socket.off('conversation_unread_count', handleConversationUnreadCount);
       socket.off('connect', handleReconnect);
     };
   }, [socket, fetchConversations]);

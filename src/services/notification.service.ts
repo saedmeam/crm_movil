@@ -52,6 +52,7 @@ export const notificationService = {
       if (!responseListenerSubscription) {
         responseListenerSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
           try {
+            console.log('[NotificationService] Notificación presionada por el usuario');
             const data = response.notification.request.content.data as any;
             if (data?.conversationId) {
               const convPayload = data.conversation || {
@@ -61,23 +62,28 @@ export const notificationService = {
                 unreadCount: 0,
               };
 
-              // Importación dinámica o vía navigationRef para desacoplar ciclo de dependencias
               const { navigationRef } = require('../navigation/navigationRef');
-              if (navigationRef.isReady()) {
-                navigationRef.navigate('App', {
-                  screen: 'ChatConversation',
-                  params: { conversation: convPayload },
-                });
-              } else {
-                // Si la navegación aún se está inicializando, esperar brevemente
-                setTimeout(() => {
-                  if (navigationRef.isReady()) {
-                    navigationRef.navigate('App', {
-                      screen: 'ChatConversation',
-                      params: { conversation: convPayload },
-                    });
+              const executeNavigation = () => {
+                if (navigationRef.isReady()) {
+                  console.log('[NotificationService] Navegando a conversación:', convPayload.id);
+                  navigationRef.navigate('App', {
+                    screen: 'ChatConversation',
+                    params: { conversation: convPayload },
+                  });
+                  return true;
+                }
+                return false;
+              };
+
+              if (!executeNavigation()) {
+                // Reintentar secuencialmente si la app se está levantando desde estado frío
+                let attempts = 0;
+                const interval = setInterval(() => {
+                  attempts++;
+                  if (executeNavigation() || attempts >= 8) {
+                    clearInterval(interval);
                   }
-                }, 600);
+                }, 350);
               }
             }
           } catch (err) {
