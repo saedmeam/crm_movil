@@ -26,8 +26,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    console.log('[Socket] Evaluando sesión. Token:', !!token, 'User:', !!user ? user.id : 'null');
     if (!token || !user) {
       if (socket) {
+        console.log('[Socket] Sesión cerrada o inexistente, desconectando socket activo...');
         socket.disconnect();
         setSocket(null);
         setIsConnected(false);
@@ -35,6 +37,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    console.log('[Socket] Conectando a', ENV.API_URL, 'para el usuario:', user.id);
     // Inicializar conexión con autenticación por token y soporte de transportes
     const socketInstance = io(ENV.API_URL, {
       auth: { token },
@@ -50,12 +53,21 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       console.log(`[Socket] Conectado exitosamente. ID: ${socketInstance.id}`);
       setIsConnected(true);
 
-      // Unirse a la sala personal del usuario
+      // Unirse a la sala personal del usuario y de rol
       socketInstance.emit('join', `user:${user.id}`);
+      if (user.role) {
+        socketInstance.emit('join', `role:${user.role.toLowerCase()}`);
+      }
+    });
+
+    // Diagnóstico: registrar cualquier evento recibido por el socket
+    socketInstance.onAny((event, ...args) => {
+      console.log(`[Socket-onAny] Evento detectado: '${event}'`, JSON.stringify(args?.[0])?.slice(0, 150));
     });
 
     // Escuchar mensajes entrantes a nivel global de la app para notificaciones push locales
     const handleIncomingMessageNotification = (payload: any) => {
+      console.log('[Socket] Mensaje recibido vía socket:', payload?.id, payload?.conversationId, payload?.contactName);
       if (!payload) return;
       const targetConvId =
         payload.conversationId ||
@@ -78,10 +90,12 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         mediaType: payload.mediaType,
         mediaUrl: payload.mediaUrl,
         senderType: payload.senderType,
+        conversation: payload.conversation || payload.conversationContext,
       });
     };
 
     socketInstance.on('new_message', handleIncomingMessageNotification);
+    socketInstance.on('new_message_alert', handleIncomingMessageNotification);
 
     socketInstance.on('disconnect', (reason) => {
       console.log(`[Socket] Desconectado: ${reason}`);
@@ -108,6 +122,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.remove();
       socketInstance.off('new_message', handleIncomingMessageNotification);
+      socketInstance.off('new_message_alert', handleIncomingMessageNotification);
       socketInstance.disconnect();
     };
   }, [token, user?.id]);

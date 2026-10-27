@@ -39,10 +39,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const storedToken = await SecureStore.getItemAsync(TOKEN_STORAGE_KEY);
         const storedUser = await SecureStore.getItemAsync(USER_STORAGE_KEY);
+        console.log('[AuthContext] restoreSession -> token presente:', !!storedToken, 'user presente:', !!storedUser);
 
         if (storedToken && storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          console.log('[AuthContext] Sesión restaurada para:', parsedUser.email || parsedUser.username, 'Rol:', parsedUser.role, 'ID:', parsedUser.id);
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
         }
       } catch (e) {
         console.warn('[AuthContext] Error recuperando sesión:', e);

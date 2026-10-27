@@ -15,6 +15,7 @@ Notifications.setNotificationHandler({
 
 let isConfigured = false;
 let activeConversationId: string | null = null;
+let responseListenerSubscription: Notifications.EventSubscription | null = null;
 const recentlyNotifiedMessages = new Map<string, number>();
 
 export const notificationService = {
@@ -46,6 +47,45 @@ export const notificationService = {
       }
 
       isConfigured = finalStatus === 'granted';
+
+      // Registrar listener global para cuando el usuario presiona la notificación
+      if (!responseListenerSubscription) {
+        responseListenerSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+          try {
+            const data = response.notification.request.content.data as any;
+            if (data?.conversationId) {
+              const convPayload = data.conversation || {
+                id: data.conversationId,
+                contactName: data.contactName || data.phoneNumber || 'Cliente',
+                contactPhone: data.phoneNumber || '',
+                unreadCount: 0,
+              };
+
+              // Importación dinámica o vía navigationRef para desacoplar ciclo de dependencias
+              const { navigationRef } = require('../navigation/navigationRef');
+              if (navigationRef.isReady()) {
+                navigationRef.navigate('App', {
+                  screen: 'ChatConversation',
+                  params: { conversation: convPayload },
+                });
+              } else {
+                // Si la navegación aún se está inicializando, esperar brevemente
+                setTimeout(() => {
+                  if (navigationRef.isReady()) {
+                    navigationRef.navigate('App', {
+                      screen: 'ChatConversation',
+                      params: { conversation: convPayload },
+                    });
+                  }
+                }, 600);
+              }
+            }
+          } catch (err) {
+            console.warn('[NotificationService] Error manejando toque en notificación:', err);
+          }
+        });
+      }
+
       return isConfigured;
     } catch (error) {
       console.warn('[NotificationService] Error configurando notificaciones:', error);
@@ -72,6 +112,7 @@ export const notificationService = {
     mediaType?: string;
     mediaUrl?: string;
     senderType?: string;
+    conversation?: any;
   }) {
     // Si la conversación ya está abierta en primer plano por el agente, no spammear con notificación
     if (activeConversationId && activeConversationId === payload.conversationId) {
@@ -123,6 +164,13 @@ export const notificationService = {
       }
     }
 
+    const conversationData = payload.conversation || {
+      id: payload.conversationId,
+      contactName: title,
+      contactPhone: payload.phoneNumber || '',
+      unreadCount: 0,
+    };
+
     try {
       await Notifications.scheduleNotificationAsync({
         identifier: payload.messageId || undefined,
@@ -131,6 +179,9 @@ export const notificationService = {
           body,
           data: {
             conversationId: payload.conversationId,
+            contactName: title,
+            phoneNumber: payload.phoneNumber || '',
+            conversation: conversationData,
           },
           sound: 'message',
           priority: Notifications.AndroidNotificationPriority.MAX,
@@ -142,3 +193,4 @@ export const notificationService = {
     }
   },
 };
+

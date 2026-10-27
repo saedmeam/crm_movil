@@ -61,7 +61,12 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
   // Cargar conversaciones desde la API
   const fetchConversations = useCallback(async () => {
     try {
+      console.log('[ChatList] Solicitando conversaciones a la API...');
       const data = await chatService.getConversations(user?.id);
+      console.log(`[ChatList] Conversaciones recibidas de la API: ${data.length}`);
+      data.slice(0, 5).forEach((c, idx) => {
+        console.log(`[ChatList] #${idx + 1}: ${c.contactName} (${c.contactPhone}) - "${c.lastMessage}" - Time: ${c.lastMessageTime} - Unread: ${c.unreadCount} - Status: ${c.status}`);
+      });
       setConversations(data);
     } catch (error) {
       console.warn('[ChatList] Error cargando conversaciones:', error);
@@ -161,6 +166,7 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     socket.on('new_message', handleNewMessage);
+    socket.on('new_message_alert', handleNewMessage);
     socket.on('new_conversation', handleNewConversation);
     socket.on('message_status_update', handleStatusUpdate);
     socket.on('conversation_read', handleConversationRead);
@@ -168,6 +174,7 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
 
     return () => {
       socket.off('new_message', handleNewMessage);
+      socket.off('new_message_alert', handleNewMessage);
       socket.off('new_conversation', handleNewConversation);
       socket.off('message_status_update', handleStatusUpdate);
       socket.off('conversation_read', handleConversationRead);

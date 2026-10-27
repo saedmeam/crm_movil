@@ -318,7 +318,13 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
       <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('ChatList');
+            }
+          }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <ArrowLeft size={24} color={colors.headerText} />
