@@ -52,12 +52,14 @@ interface MessageBubbleProps {
   message: Message;
   onImagePress?: (imageUrl: string) => void;
   onVideoPress?: (videoUrl: string) => void;
+  onContactMessagePress?: (contact: { name: string; phone: string }) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   onImagePress,
   onVideoPress,
+  onContactMessagePress,
 }) => {
   const { isDark, colors } = useTheme();
   const senderTypeUpper = String(message.senderType || '').toUpperCase();
@@ -271,7 +273,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.vcardBtn, styles.vcardBtnPrimary, { backgroundColor: isDark ? '#00A884' : '#075E54' }]}
-                      onPress={() => handleOpenLink(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)}
+                      onPress={() => {
+                        if (onContactMessagePress) {
+                          onContactMessagePress(contact);
+                        } else {
+                          handleOpenLink(`https://wa.me/${contact.phone.replace(/\D/g, '')}`);
+                        }
+                      }}
                     >
                       <MessageSquare size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
                       <Text style={[styles.vcardBtnText, { color: '#FFFFFF' }]}>Mensaje</Text>

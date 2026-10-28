@@ -219,6 +219,49 @@ export const chatService = {
     return response.data;
   },
 
+  // Iniciar nuevo chat / Outbound conversation
+  async startConversation(payload: {
+    whatsappLineId: string;
+    phone: string;
+    name?: string;
+    initialMessage: string;
+  }): Promise<{ conversation: Conversation; message: Message }> {
+    const response = await apiClient.post<any>('/api/conversations/start', payload);
+    const data = response.data;
+    const contact = data.conversation?.contact || {};
+    const lastMsg = data.message || data.conversation?.messages?.[0] || null;
+
+    let lastMessageContent = lastMsg?.content || payload.initialMessage;
+
+    const formattedConv: Conversation = {
+      id: data.conversation.id,
+      contactName: contact.name || payload.name || contact.phone || payload.phone,
+      contactPhone: contact.phone || payload.phone,
+      contactAvatar: contact.avatarUrl || undefined,
+      companyName: contact.institution || undefined,
+      lastMessage: lastMessageContent,
+      lastMessageTime: lastMsg?.createdAt || new Date().toISOString(),
+      lastMessageStatus: 'SENT',
+      lastMessageSenderType: 'agent',
+      unreadCount: 0,
+      isAssignedToMe: true,
+      assignedUserId: data.conversation.assignedUserId,
+      status: data.conversation.status,
+      stage: data.conversation.stage,
+      channel: data.conversation.channel,
+      whatsappLineId: data.conversation.whatsappLineId,
+      whatsappLine: data.conversation.whatsappLine,
+      collaborators: data.conversation.collaborators || [],
+      contact,
+      messages: data.conversation.messages || (lastMsg ? [lastMsg] : []),
+    };
+
+    return {
+      conversation: formattedConv,
+      message: lastMsg,
+    };
+  },
+
   // Obtener lista de agentes para asignar o colaborar
   async getAgents(): Promise<Array<{ id: string; name: string; username?: string }>> {
     const response = await apiClient.get<Array<{ id: string; name: string; username?: string }>>('/api/users/agents');

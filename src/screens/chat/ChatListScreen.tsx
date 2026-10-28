@@ -28,6 +28,7 @@ import {
   Moon,
   Sun,
   ChevronDown,
+  MessageSquarePlus,
 } from 'lucide-react-native';
 import { AppStackParamList } from '../../navigation/types';
 import { Conversation, MessageStatus } from '../../types';
@@ -36,6 +37,7 @@ import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { resolveMediaUrl } from '../../config/env';
+import { NewChatModal } from '../../components/chat/NewChatModal';
 
 type ChatListNavigationProp = NativeStackNavigationProp<AppStackParamList, 'ChatList'>;
 
@@ -55,6 +57,7 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<TabFilter>('ALL');
   const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -351,8 +354,16 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Botones de Cabecera: Modo Oscuro, Admin y Logout */}
+        {/* Botones de Cabecera: Nuevo Chat, Modo Oscuro, Admin y Logout */}
         <View style={styles.topHeaderActions}>
+          <TouchableOpacity
+            style={[styles.headerActionBtn, { backgroundColor: isDark ? '#00A884' : '#25D366' }]}
+            onPress={() => setShowNewChatModal(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MessageSquarePlus size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.headerActionBtn}
             onPress={toggleTheme}
@@ -584,6 +595,15 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
         />
       )}
 
+      {/* Modal Iniciar Nuevo Chat */}
+      <NewChatModal
+        visible={showNewChatModal}
+        onClose={() => setShowNewChatModal(false)}
+        onChatCreated={(newConv) => {
+          fetchConversations();
+          navigation.navigate('ChatConversation', { conversation: newConv });
+        }}
+      />
     </View>
   );
 };

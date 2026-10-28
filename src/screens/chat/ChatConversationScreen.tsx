@@ -12,6 +12,7 @@ import {
   Alert,
   Linking,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -41,6 +42,7 @@ import { resolveMediaUrl } from '../../config/env';
 import { notificationService } from '../../services/notification.service';
 import { MessageBubble } from '../../components/chat/MessageBubble';
 import { ChatInputBar } from '../../components/chat/ChatInputBar';
+import { NewChatModal } from '../../components/chat/NewChatModal';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'ChatConversation'>;
 
@@ -60,6 +62,45 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCollabModal, setShowCollabModal] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [targetContactData, setTargetContactData] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
+
+  // Manejar toque en "Mensaje" de una tarjeta de contacto
+  const handleContactMessagePress = useCallback(async (contact: { name: string; phone: string }) => {
+    try {
+      const cleanTargetPhone = contact.phone.replace(/\D/g, '');
+      if (!cleanTargetPhone) {
+        Alert.alert('Teléfono no válido', 'El contacto no contiene un número de teléfono válido.');
+        return;
+      }
+
+      // Buscar si ya existe una conversación con este contacto en el CRM
+      const allConvs = await chatService.getConversations();
+      const existingConv = allConvs.find((c) => {
+        const cPhone = (c.contactPhone || c.contact?.phone || '').replace(/\D/g, '');
+        return cPhone && (cPhone === cleanTargetPhone || cPhone.endsWith(cleanTargetPhone) || cleanTargetPhone.endsWith(cPhone));
+      });
+
+      if (existingConv) {
+        // Abrir directamente la conversación existente en el CRM
+        navigation.navigate('ChatConversation', { conversation: existingConv });
+      } else {
+        // Si no existe, abrir el modal de nuevo chat precargando los datos del contacto
+        setTargetContactData({
+          name: contact.name || '',
+          phone: contact.phone || '',
+        });
+        setShowNewChatModal(true);
+      }
+    } catch (e) {
+      console.warn('[ChatConversation] Error buscando conversación para contacto:', e);
+      setTargetContactData({
+        name: contact.name || '',
+        phone: contact.phone || '',
+      });
+      setShowNewChatModal(true);
+    }
+  }, [navigation]);
 
   // Lista de Agentes
   const [agents, setAgents] = useState<Array<{ id: string; name: string; username?: string }>>([]);
@@ -67,6 +108,35 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
   const [selectedCollabIds, setSelectedCollabIds] = useState<string[]>(
     (initialConversation.collaborators || []).map((c) => c.id)
   );
+
+  // Listener para altura de teclado en Android/iOS para asegurar visibilidad total del input
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = (e: any) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setTimeout(() => {
+        try {
+          flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        } catch {}
+      }, 50);
+    };
+
+    const onHide = () => {
+      setKeyboardHeight(0);
+    };
+
+    const subShow = Keyboard.addListener(showEvent, onShow);
+    const subHide = Keyboard.addListener(hideEvent, onHide);
+
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
 
   // Cargar historial de mensajes y marcar como leídos
   const loadMessages = useCallback(async () => {
@@ -312,7 +382,6 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.chatBg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       {/* Cabecera Principal */}
       <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
@@ -472,6 +541,7 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
                     senderName: currentConv.contactName,
                   })
                 }
+                onContactMessagePress={handleContactMessagePress}
               />
             )}
             inverted
@@ -481,7 +551,7 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
       </View>
 
       {/* Barra de Entrada de Mensaje */}
-      <View style={{ paddingBottom: insets.bottom }}>
+      <View style={{ paddingBottom: keyboardHeight > 0 ? 0 : insets.bottom }}>
         <ChatInputBar onSendMessage={handleSendMessage} />
       </View>
 
@@ -714,6 +784,17 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
           </View>
         </View>
       </Modal>
+
+      {/* Modal Nuevo Chat (abierto desde mensaje de contacto compartido) */}
+      <NewChatModal
+        visible={showNewChatModal}
+        initialPhone={targetContactData.phone}
+        initialName={targetContactData.name}
+        onClose={() => setShowNewChatModal(false)}
+        onChatCreated={(newConv) => {
+          navigation.navigate('ChatConversation', { conversation: newConv });
+        }}
+      />
     </KeyboardAvoidingView>
   );
 };
