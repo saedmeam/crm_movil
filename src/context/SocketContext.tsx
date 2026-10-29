@@ -94,8 +94,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       });
     };
 
+    // Solo escuchar new_message para evitar doble notificación (new_message_alert es emitido por el backend simultáneamente para sonido web)
     socketInstance.on('new_message', handleIncomingMessageNotification);
-    socketInstance.on('new_message_alert', handleIncomingMessageNotification);
 
     socketInstance.on('disconnect', (reason) => {
       console.log(`[Socket] Desconectado: ${reason}`);

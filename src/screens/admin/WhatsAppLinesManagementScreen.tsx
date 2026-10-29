@@ -53,7 +53,7 @@ export const WhatsAppLinesManagementScreen: React.FC<Props> = ({ navigation }) =
   const loadLines = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await adminService.getLines();
+      const data = await adminService.getLines(true);
       setLines(data);
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.error || 'No se pudieron cargar las líneas');

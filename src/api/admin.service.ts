@@ -50,6 +50,7 @@ export interface WhatsAppLine {
   providerType?: 'QR_BAILEYS' | 'META_CLOUD';
   status?: string;
   active?: boolean;
+  isDisconnected?: boolean;
 }
 
 export interface RoleItem {
@@ -85,8 +86,10 @@ export const adminService = {
   },
 
   // --- Líneas de WhatsApp ---
-  async getLines(): Promise<WhatsAppLine[]> {
-    const res = await apiClient.get<WhatsAppLine[]>('/api/lines');
+  async getLines(all?: boolean): Promise<WhatsAppLine[]> {
+    const res = await apiClient.get<WhatsAppLine[]>('/api/lines', {
+      params: all ? { all: 'true' } : undefined,
+    });
     return res.data;
   },
 

@@ -58,6 +58,15 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
   const [isLoading, setIsLoading] = useState(true);
   const flashListRef = useRef<any>(null);
 
+  // Sincronizar estado cuando se navega a otra conversación desde la misma pantalla
+  useEffect(() => {
+    if (route.params.conversation && route.params.conversation.id !== currentConv.id) {
+      setCurrentConv(route.params.conversation);
+      setMessages([]);
+      setIsLoading(true);
+    }
+  }, [route.params.conversation]);
+
   // Modales
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -65,42 +74,67 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [targetContactData, setTargetContactData] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
 
+  // Estado de carga al buscar conversación de contacto
+  const [searchingContactChat, setSearchingContactChat] = useState(false);
+
   // Manejar toque en "Mensaje" de una tarjeta de contacto
   const handleContactMessagePress = useCallback(async (contact: { name: string; phone: string }) => {
     try {
-      const cleanTargetPhone = contact.phone.replace(/\D/g, '');
+      console.log('[ChatConversation] Click en Mensaje para contacto:', contact);
+      const cleanTargetPhone = (contact.phone || '').replace(/\D/g, '');
       if (!cleanTargetPhone) {
-        Alert.alert('Teléfono no válido', 'El contacto no contiene un número de teléfono válido.');
+        Alert.alert('Teléfono no válido', 'El contacto no contiene un número telefónico válido para escribir.');
         return;
       }
 
+      setSearchingContactChat(true);
+
       // Buscar si ya existe una conversación con este contacto en el CRM
-      const allConvs = await chatService.getConversations();
+      const allConvs = await chatService.getConversations(user?.id);
+      
+      // Normalizar número eliminando posibles ceros a la izquierda tras el código de país o prefijo
+      const targetLast8 = cleanTargetPhone.slice(-8);
+
       const existingConv = allConvs.find((c) => {
         const cPhone = (c.contactPhone || c.contact?.phone || '').replace(/\D/g, '');
-        return cPhone && (cPhone === cleanTargetPhone || cPhone.endsWith(cleanTargetPhone) || cleanTargetPhone.endsWith(cPhone));
+        if (!cPhone) return false;
+        return (
+          cPhone === cleanTargetPhone ||
+          cPhone.endsWith(cleanTargetPhone) ||
+          cleanTargetPhone.endsWith(cPhone) ||
+          (targetLast8.length >= 8 && cPhone.endsWith(targetLast8))
+        );
       });
 
       if (existingConv) {
-        // Abrir directamente la conversación existente en el CRM
-        navigation.navigate('ChatConversation', { conversation: existingConv });
+        console.log('[ChatConversation] Conversación existente encontrada:', existingConv.id);
+        if (existingConv.id === currentConv.id) {
+          Alert.alert('Chat actual', 'Ya te encuentras en la conversación con este contacto.');
+          return;
+        }
+        // Actualizar directamente la conversación activa en pantalla
+        setCurrentConv(existingConv);
+        setMessages([]);
+        setIsLoading(true);
       } else {
-        // Si no existe, abrir el modal de nuevo chat precargando los datos del contacto
+        console.log('[ChatConversation] Conversación no existe aún. Abriendo Nuevo Chat para:', contact.name, cleanTargetPhone);
         setTargetContactData({
           name: contact.name || '',
-          phone: contact.phone || '',
+          phone: contact.phone || cleanTargetPhone,
         });
         setShowNewChatModal(true);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[ChatConversation] Error buscando conversación para contacto:', e);
       setTargetContactData({
         name: contact.name || '',
         phone: contact.phone || '',
       });
       setShowNewChatModal(true);
+    } finally {
+      setSearchingContactChat(false);
     }
-  }, [navigation]);
+  }, [currentConv.id, user?.id]);
 
   // Lista de Agentes
   const [agents, setAgents] = useState<Array<{ id: string; name: string; username?: string }>>([]);
@@ -162,17 +196,36 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
     };
   }, [currentConv.id, loadMessages]);
 
-  // Cargar agentes al abrir modal
-  const fetchAgents = async () => {
-    if (agents.length > 0) return;
+  // Cargar agentes para colaboradores y menciones predictivas
+  const fetchAgents = useCallback(async () => {
     try {
-      setLoadingAgents(true);
       const data = await chatService.getAgents();
       setAgents(data);
     } catch (e) {
       console.warn('[ChatConversation] Error cargando agentes:', e);
     } finally {
       setLoadingAgents(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAgents();
+  }, [fetchAgents]);
+
+  // Agregar colaborador automáticamente al seleccionarlo desde mención @
+  const handleAddCollaboratorFromMention = async (agentId: string) => {
+    if (selectedCollabIds.includes(agentId)) return;
+    const nextIds = [...selectedCollabIds, agentId];
+    setSelectedCollabIds(nextIds);
+    try {
+      await chatService.updateCollaborators(currentConv.id, nextIds);
+      const updatedCollabs = agents.filter((a) => nextIds.includes(a.id));
+      setCurrentConv((prev) => ({
+        ...prev,
+        collaborators: updatedCollabs,
+      }));
+    } catch (e) {
+      console.warn('[ChatConversation] Error al vincular colaborador desde mención:', e);
     }
   };
 
@@ -551,9 +604,31 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
       </View>
 
       {/* Barra de Entrada de Mensaje */}
-      <View style={{ paddingBottom: keyboardHeight > 0 ? 0 : insets.bottom }}>
-        <ChatInputBar onSendMessage={handleSendMessage} />
+      <View
+        style={{
+          paddingBottom: Platform.OS === 'android'
+            ? (keyboardHeight > 0 ? keyboardHeight : insets.bottom)
+            : (keyboardHeight > 0 ? 0 : insets.bottom),
+        }}
+      >
+        <ChatInputBar
+          onSendMessage={handleSendMessage}
+          agents={agents}
+          onAddCollaborator={handleAddCollaboratorFromMention}
+        />
       </View>
+
+      {/* Indicador de búsqueda de chat de contacto */}
+      {searchingContactChat && (
+        <View style={styles.searchingOverlay}>
+          <View style={[styles.searchingCard, { backgroundColor: colors.surface }]}>
+            <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: '600' }}>
+              Buscando conversación...
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Modal 3 Puntos (Opciones del Chat) */}
       <Modal visible={showOptionsModal} transparent animationType="fade">
@@ -1104,5 +1179,27 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
+  },
+  searchingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  searchingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
 });

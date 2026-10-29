@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  ScrollView,
 } from 'react-native';
 import {
   useAudioRecorder,
@@ -33,6 +34,12 @@ import {
 import { uploadService } from '../../api/upload.service';
 import { useTheme } from '../../context/ThemeContext';
 
+interface AgentItem {
+  id: string;
+  name: string;
+  username?: string;
+}
+
 interface ChatInputBarProps {
   onSendMessage: (payload: {
     content: string;
@@ -44,11 +51,15 @@ interface ChatInputBarProps {
     isInternalNote?: boolean;
   }) => Promise<void>;
   disabled?: boolean;
+  agents?: AgentItem[];
+  onAddCollaborator?: (agentId: string) => Promise<void> | void;
 }
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSendMessage,
   disabled = false,
+  agents = [],
+  onAddCollaborator,
 }) => {
   const { isDark, colors } = useTheme();
   const [text, setText] = useState('');
@@ -57,6 +68,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showStickerMenu, setShowStickerMenu] = useState(false);
+
+  // Menciones @ en Notas Internas
+  const [showMentionMenu, setShowMentionMenu] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
 
   // Lista de emojis y stickers rápidos corporativos
   const quickStickers = [
@@ -89,6 +104,51 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     // Escucha de estado de grabación
   });
 
+  // Detectar @ al escribir en modo Nota Interna
+  const handleTextChange = (val: string) => {
+    setText(val);
+
+    if (isInternalNoteMode) {
+      // Buscar si el cursor o el final de la palabra actual tiene un @
+      const match = val.match(/@([a-zA-Z0-9._-]*)$/);
+      if (match) {
+        setMentionQuery(match[1].toLowerCase());
+        setShowMentionMenu(true);
+      } else {
+        setShowMentionMenu(false);
+      }
+    } else {
+      if (showMentionMenu) setShowMentionMenu(false);
+    }
+  };
+
+  // Filtrar agentes según la consulta tras el @
+  const filteredAgents = useMemo(() => {
+    if (!showMentionMenu) return [];
+    if (!mentionQuery) return agents;
+    return agents.filter(
+      (a) =>
+        a.name.toLowerCase().includes(mentionQuery) ||
+        (a.username && a.username.toLowerCase().includes(mentionQuery))
+    );
+  }, [showMentionMenu, mentionQuery, agents]);
+
+  // Al seleccionar un agente del desplegable de menciones
+  const handleSelectMention = (agent: AgentItem) => {
+    const handleName = agent.username || agent.name.replace(/\s+/g, '').toLowerCase();
+    const mentionTag = `@${handleName} `;
+
+    // Reemplazar el @incompleto por la mención completa
+    const replaced = text.replace(/@([a-zA-Z0-9._-]*)$/, mentionTag);
+    setText(replaced);
+    setShowMentionMenu(false);
+
+    // Si se pasa callback para añadir como colaborador, llamarlo
+    if (onAddCollaborator) {
+      onAddCollaborator(agent.id);
+    }
+  };
+
   // Manejador de Texto / Nota Interna
   const handleSendText = async () => {
     if (!text.trim() || disabled) return;
@@ -96,6 +156,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     const isNote = isInternalNoteMode;
     setText('');
     setIsInternalNoteMode(false);
+    setShowMentionMenu(false);
 
     await onSendMessage({
       content: contentToSend,
@@ -408,6 +469,58 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         </View>
       )}
 
+      {/* Menú Flotante de Menciones (@) en Nota Interna */}
+      {isInternalNoteMode && showMentionMenu && filteredAgents.length > 0 && (
+        <View
+          style={[
+            styles.mentionMenu,
+            {
+              backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+              borderColor: isDark ? '#374151' : '#E2E8F0',
+            },
+          ]}
+        >
+          <View style={[styles.mentionMenuHeader, { borderBottomColor: colors.borderSubtle }]}>
+            <Text style={[styles.mentionMenuHeaderText, { color: colors.textSecondary }]}>
+              Mencionar agente (será colaborador)
+            </Text>
+            <TouchableOpacity onPress={() => setShowMentionMenu(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            style={styles.mentionScroll}
+            keyboardShouldPersistTaps="always"
+            nestedScrollEnabled
+          >
+            {filteredAgents.map((agent) => (
+              <TouchableOpacity
+                key={agent.id}
+                style={[
+                  styles.mentionItem,
+                  { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9' },
+                ]}
+                onPress={() => handleSelectMention(agent)}
+              >
+                <View style={[styles.mentionAvatar, { backgroundColor: isDark ? '#00A884' : '#075E54' }]}>
+                  <Text style={styles.mentionAvatarText}>
+                    {agent.name?.charAt(0)?.toUpperCase() || 'A'}
+                  </Text>
+                </View>
+                <View style={styles.mentionInfo}>
+                  <Text style={[styles.mentionName, { color: colors.textPrimary }]} numberOfLines={1}>
+                    {agent.name}
+                  </Text>
+                  <Text style={[styles.mentionUsername, { color: isDark ? '#34D399' : '#059669' }]}>
+                    @{agent.username || agent.name.replace(/\s+/g, '').toLowerCase()}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Barra de Entrada */}
       <View
         style={[
@@ -447,7 +560,11 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             isDark && { backgroundColor: '#202C33' },
             isInternalNoteMode && styles.internalToggleActive,
           ]}
-          onPress={() => setIsInternalNoteMode(!isInternalNoteMode)}
+          onPress={() => {
+            const nextMode = !isInternalNoteMode;
+            setIsInternalNoteMode(nextMode);
+            if (!nextMode) setShowMentionMenu(false);
+          }}
           disabled={disabled || isRecording}
         >
           <Lock size={16} color={isInternalNoteMode ? '#854D0E' : colors.textSecondary} />
@@ -468,12 +585,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             style={[styles.textInput, { color: colors.inputText }]}
             placeholder={
               isInternalNoteMode
-                ? 'Escribe una nota interna para el equipo...'
+                ? 'Nota interna (usa @ para mencionar y añadir colaborador)...'
                 : 'Mensaje'
             }
             placeholderTextColor={colors.textMuted}
             value={text}
-            onChangeText={setText}
+            onChangeText={handleTextChange}
             multiline
             editable={!disabled && !isUploading}
           />
@@ -643,5 +760,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 8,
+  },
+  mentionMenu: {
+    marginBottom: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    maxHeight: 180,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  mentionMenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  mentionMenuHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  mentionScroll: {
+    maxHeight: 140,
+  },
+  mentionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  mentionAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  mentionAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  mentionInfo: {
+    flex: 1,
+  },
+  mentionName: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  mentionUsername: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 });

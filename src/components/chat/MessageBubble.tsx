@@ -30,10 +30,16 @@ function parseVCard(vcardStr: string): ParsedContact[] {
     const fnMatch = card.match(/FN:(.*?)(?:\r?\n|$)/i);
     if (fnMatch) {
       name = fnMatch[1].trim();
+    } else {
+      const nMatch = card.match(/N:[^;]*;(.*?)(?:;|\r?\n|$)/i);
+      if (nMatch) name = nMatch[1].trim();
     }
 
-    const telMatch = card.match(/TEL[^:]*:(.*?)(?:\r?\n|$)/i);
-    if (telMatch) {
+    const waidMatch = card.match(/waid=(\d+)/i);
+    const telMatch = card.match(/(?:TEL|item\d+\.TEL)[^:]*:(.*?)(?:\r?\n|$)/i);
+    if (waidMatch) {
+      phone = waidMatch[1].trim();
+    } else if (telMatch) {
       phone = telMatch[1].trim();
     }
 

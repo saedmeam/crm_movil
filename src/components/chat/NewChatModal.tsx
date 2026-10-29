@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { MessageSquarePlus, X, Send, Smartphone } from 'lucide-react-native';
+import { MessageSquarePlus, X, Send, Smartphone, ChevronDown, Check } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { adminService, WhatsAppLine } from '../../api/admin.service';
 import { chatService } from '../../api/chat.service';
@@ -40,6 +40,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedLineId, setSelectedLineId] = useState('');
+  const [showLineDropdown, setShowLineDropdown] = useState(false);
   const [phone, setPhone] = useState(initialPhone);
   const [name, setName] = useState(initialName);
   const [initialMessage, setInitialMessage] = useState('');
@@ -49,6 +50,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
       setPhone(initialPhone);
       setName(initialName);
       setInitialMessage('');
+      setShowLineDropdown(false);
       loadLines();
     }
   }, [visible, initialPhone, initialName]);
@@ -59,8 +61,8 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
       const data = await adminService.getLines();
       const activeLines = data.filter((l) => l.active !== false);
       setLines(activeLines);
-      if (activeLines.length > 0 && !selectedLineId) {
-        setSelectedLineId(activeLines[0].id);
+      if (activeLines.length > 0) {
+        setSelectedLineId((prev) => prev && activeLines.some((l) => l.id === prev) ? prev : activeLines[0].id);
       }
     } catch (err) {
       console.warn('[NewChatModal] Error cargando líneas:', err);
@@ -102,6 +104,8 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
     }
   };
 
+  const selectedLine = lines.find((l) => l.id === selectedLineId);
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -123,8 +127,8 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
           </View>
 
           <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
-            {/* 1. Selección de Línea */}
-            <Text style={[styles.label, { color: colors.textPrimary }]}>1. Línea de WhatsApp remitente *</Text>
+            {/* 1. Selección de Línea con Combobox Dropdown */}
+            <Text style={[styles.label, { color: colors.textPrimary }]}>1. Selecciona el número desde el que escribirás *</Text>
             {loadingLines ? (
               <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
             ) : lines.length === 0 ? (
@@ -132,45 +136,91 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
                 <Text style={styles.emptyLinesText}>No hay líneas activas disponibles.</Text>
               </View>
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.linesScroll}>
-                {lines.map((line) => {
-                  const isSelected = selectedLineId === line.id;
-                  return (
-                    <TouchableOpacity
-                      key={line.id}
-                      style={[
-                        styles.lineChip,
-                        {
-                          backgroundColor: isSelected
-                            ? (isDark ? '#064E3B' : '#ECFDF5')
-                            : (isDark ? '#202C33' : '#F1F5F9'),
-                          borderColor: isSelected
-                            ? (isDark ? '#10B981' : '#059669')
-                            : (isDark ? '#374248' : '#CBD5E1'),
-                        },
-                      ]}
-                      onPress={() => setSelectedLineId(line.id)}
-                    >
-                      <Smartphone
-                        size={14}
-                        color={isSelected ? (isDark ? '#34D399' : '#059669') : colors.textSecondary}
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text
-                        style={[
-                          styles.lineChipText,
-                          {
-                            color: isSelected ? (isDark ? '#34D399' : '#059669') : colors.textPrimary,
-                            fontWeight: isSelected ? '700' : '500',
-                          },
-                        ]}
-                      >
-                        {line.name} {line.providerType === 'QR_BAILEYS' ? '(QR)' : '(Cloud)'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              <View style={styles.comboboxWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.comboboxTrigger,
+                    {
+                      backgroundColor: isDark ? '#202C33' : '#F8FAFC',
+                      borderColor: showLineDropdown ? colors.primary : (isDark ? '#374248' : '#CBD5E1'),
+                    },
+                  ]}
+                  onPress={() => setShowLineDropdown(!showLineDropdown)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.comboboxTriggerLeft}>
+                    <Smartphone
+                      size={18}
+                      color={isDark ? '#34D399' : '#059669'}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={[styles.comboboxSelectedText, { color: colors.textPrimary }]}>
+                      {selectedLine
+                        ? `${selectedLine.name} ${selectedLine.phoneNumberId ? `(${selectedLine.phoneNumberId})` : ''} - ${selectedLine.providerType === 'QR_BAILEYS' ? 'QR' : 'Cloud'}`
+                        : 'Selecciona una línea'}
+                    </Text>
+                  </View>
+                  <ChevronDown
+                    size={18}
+                    color={colors.textSecondary}
+                    style={{ transform: [{ rotate: showLineDropdown ? '180deg' : '0deg' }] }}
+                  />
+                </TouchableOpacity>
+
+                {showLineDropdown && (
+                  <View
+                    style={[
+                      styles.dropdownMenu,
+                      {
+                        backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                        borderColor: isDark ? '#374151' : '#E2E8F0',
+                      },
+                    ]}
+                  >
+                    {lines.map((line) => {
+                      const isSelected = selectedLineId === line.id;
+                      return (
+                        <TouchableOpacity
+                          key={line.id}
+                          style={[
+                            styles.dropdownItem,
+                            isSelected && {
+                              backgroundColor: isDark ? 'rgba(0,168,132,0.15)' : '#ECFDF5',
+                            },
+                          ]}
+                          onPress={() => {
+                            setSelectedLineId(line.id);
+                            setShowLineDropdown(false);
+                          }}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={[
+                                styles.dropdownItemTitle,
+                                {
+                                  color: isSelected
+                                    ? (isDark ? '#34D399' : '#059669')
+                                    : colors.textPrimary,
+                                  fontWeight: isSelected ? '700' : '500',
+                                },
+                              ]}
+                            >
+                              {line.name}
+                            </Text>
+                            <Text style={[styles.dropdownItemSubtitle, { color: colors.textSecondary }]}>
+                              {line.providerType === 'QR_BAILEYS' ? 'WhatsApp QR (Baileys)' : 'Meta Cloud API'}
+                              {line.phoneNumberId ? ` • Tel: ${line.phoneNumberId}` : ''}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <Check size={18} color={isDark ? '#34D399' : '#059669'} />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
             )}
 
             {/* 2. Número de teléfono */}
@@ -301,21 +351,55 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 6,
   },
-  linesScroll: {
-    flexDirection: 'row',
-    marginBottom: 4,
+  comboboxWrapper: {
+    marginBottom: 6,
+    zIndex: 10,
   },
-  lineChip: {
+  comboboxTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1.5,
+  },
+  comboboxTriggerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
     marginRight: 8,
   },
-  lineChipText: {
-    fontSize: 13,
+  comboboxSelectedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  dropdownMenu: {
+    marginTop: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  dropdownItemTitle: {
+    fontSize: 14,
+  },
+  dropdownItemSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
   },
   emptyLinesBox: {
     padding: 10,

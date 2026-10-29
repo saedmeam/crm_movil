@@ -29,10 +29,13 @@ import {
   Sun,
   ChevronDown,
   MessageSquarePlus,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react-native';
 import { AppStackParamList } from '../../navigation/types';
 import { Conversation, MessageStatus } from '../../types';
 import { chatService } from '../../api/chat.service';
+import { adminService, WhatsAppLine } from '../../api/admin.service';
 import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -54,12 +57,49 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
   const { socket, isConnected } = useSocket();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [lines, setLines] = useState<WhatsAppLine[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<TabFilter>('ALL');
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Cargar líneas de WhatsApp para monitorear sincronización y desconexiones
+  const fetchLines = useCallback(async () => {
+    try {
+      const data = await adminService.getLines();
+      console.log('[ChatList] Líneas obtenidas de /api/lines:', JSON.stringify(data));
+      setLines(data);
+    } catch (e) {
+      console.warn('[ChatList] Error consultando líneas de WhatsApp:', e);
+    }
+  }, []);
+
+  // Detectar líneas que realmente requieren escaneo de QR o están desvinculadas
+  const disconnectedLines = useMemo(() => {
+    return lines.filter((l) => {
+      // Si la línea está desactivada administrativamente por el usuario, ignorar
+      if (l.active === false) return false;
+
+      // Las líneas de Meta Cloud API no requieren escaneo de QR (usan token de Meta)
+      if (l.providerType === 'META_CLOUD') return false;
+
+      // Si el backend marca explícitamente isDisconnected
+      if (l.isDisconnected === true) return true;
+
+      const statusUpper = String(l.status || '').toUpperCase();
+      // Solo alertar si es línea QR_BAILEYS y está esperando QR o desconectada
+      return (
+        statusUpper === 'QR_READY' ||
+        statusUpper === 'REQUIRES_QR' ||
+        statusUpper === 'DISCONNECTED' ||
+        statusUpper === 'DESCONECTADO' ||
+        statusUpper === 'UNLINKED' ||
+        statusUpper === 'PAIRING'
+      );
+    });
+  }, [lines]);
 
   // Cargar conversaciones desde la API
   const fetchConversations = useCallback(async () => {
@@ -79,11 +119,12 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [user?.id]);
 
-  // Al enfocar la pantalla, refrescar silenciosamente las conversaciones
+  // Al enfocar la pantalla, refrescar silenciosamente las conversaciones y las líneas
   useFocusEffect(
     useCallback(() => {
       fetchConversations();
-    }, [fetchConversations])
+      fetchLines();
+    }, [fetchConversations, fetchLines])
   );
 
   // Escuchar eventos Socket.IO para actualizar la lista de chats en vivo
@@ -176,28 +217,71 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const handleReconnect = () => {
-      console.log('[ChatList] Socket reconectado, recargando conversaciones...');
+      console.log('[ChatList] Socket reconectado, recargando conversaciones y líneas...');
       fetchConversations();
+      fetchLines();
     };
 
+    const handleLineStatusUpdate = () => {
+      console.log('[ChatList] Evento de estado de línea recibido');
+      fetchLines();
+    };
+
+    socket.on('baileys_connected', (payload: any) => {
+      console.log('[ChatList] Socket baileys_connected:', payload);
+      if (payload?.lineId) {
+        setLines((prev) =>
+          prev.map((l) => (l.id === payload.lineId ? { ...l, status: 'CONNECTED' } : l))
+        );
+      }
+      fetchLines();
+    });
+
+    socket.on('baileys_qr', (payload: any) => {
+      console.log('[ChatList] Socket baileys_qr:', payload);
+      if (payload?.lineId) {
+        setLines((prev) =>
+          prev.map((l) => (l.id === payload.lineId ? { ...l, status: 'QR_READY' } : l))
+        );
+      }
+      fetchLines();
+    });
+
+    socket.on('baileys_disconnected', (payload: any) => {
+      console.log('[ChatList] Socket baileys_disconnected:', payload);
+      if (payload?.lineId) {
+        setLines((prev) =>
+          prev.map((l) => (l.id === payload.lineId ? { ...l, status: 'DISCONNECTED' } : l))
+        );
+      }
+      fetchLines();
+    });
+
     socket.on('new_message', handleNewMessage);
-    socket.on('new_message_alert', handleNewMessage);
     socket.on('new_conversation', handleNewConversation);
     socket.on('message_status_update', handleStatusUpdate);
     socket.on('conversation_read', handleConversationRead);
     socket.on('conversation_unread_count', handleConversationUnreadCount);
+    socket.on('line_status', handleLineStatusUpdate);
+    socket.on('whatsapp_status', handleLineStatusUpdate);
+    socket.on('qr_code', handleLineStatusUpdate);
     socket.on('connect', handleReconnect);
 
     return () => {
+      socket.off('baileys_connected');
+      socket.off('baileys_qr');
+      socket.off('baileys_disconnected');
       socket.off('new_message', handleNewMessage);
-      socket.off('new_message_alert', handleNewMessage);
       socket.off('new_conversation', handleNewConversation);
       socket.off('message_status_update', handleStatusUpdate);
       socket.off('conversation_read', handleConversationRead);
       socket.off('conversation_unread_count', handleConversationUnreadCount);
+      socket.off('line_status', handleLineStatusUpdate);
+      socket.off('whatsapp_status', handleLineStatusUpdate);
+      socket.off('qr_code', handleLineStatusUpdate);
       socket.off('connect', handleReconnect);
     };
-  }, [socket, fetchConversations]);
+  }, [socket, fetchConversations, fetchLines]);
 
   // Filtros de búsqueda y pestañas idénticos a la app web
   const filteredConversations = useMemo(() => {
@@ -395,6 +479,49 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Alerta de Número / Línea Desvinculada */}
+      {disconnectedLines.length > 0 && (
+        <TouchableOpacity
+          style={[
+            styles.disconnectedAlertBanner,
+            { backgroundColor: isDark ? '#7F1D1D' : '#FEF2F2', borderColor: isDark ? '#991B1B' : '#FCA5A5' },
+          ]}
+          onPress={() => {
+            if (isAdmin) {
+              navigation.navigate('WhatsAppLinesManagement');
+            } else {
+              fetchLines();
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.disconnectedAlertLeft}>
+            <View style={[styles.alertIconCircle, { backgroundColor: isDark ? '#991B1B' : '#FEE2E2' }]}>
+              <AlertTriangle size={18} color="#DC2626" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.disconnectedAlertTitle, { color: isDark ? '#FCA5A5' : '#991B1B' }]}>
+                {disconnectedLines.length === 1
+                  ? `ATENCIÓN: La línea "${disconnectedLines[0].name}"${disconnectedLines[0].phoneNumberId ? ` (${disconnectedLines[0].phoneNumberId})` : ''} requiere escaneo de QR.`
+                  : `ATENCIÓN: ${disconnectedLines.length} líneas requieren escaneo de QR.`}
+              </Text>
+              <Text style={[styles.disconnectedAlertSub, { color: isDark ? '#FECACA' : '#B91C1C' }]}>
+                {isAdmin
+                  ? 'Haz clic aquí para sincronizarla escaneando el código QR'
+                  : 'Requiere que el administrador vuelva a sincronizarla'}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.retrySyncBtn, { backgroundColor: isDark ? '#991B1B' : '#EF4444' }]}
+            onPress={fetchLines}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <RefreshCw size={14} color="#FFFFFF" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
 
       {/* Barra de Búsqueda */}
       <View style={[styles.searchSection, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
@@ -884,5 +1011,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94A3B8',
     marginTop: 4,
+  },
+  disconnectedAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 12,
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  disconnectedAlertLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+    gap: 10,
+  },
+  alertIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  disconnectedAlertTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  disconnectedAlertSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  retrySyncBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
