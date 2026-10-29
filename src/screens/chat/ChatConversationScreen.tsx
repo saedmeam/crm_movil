@@ -354,6 +354,35 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
           flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
         } catch {}
       }, 100);
+
+      // Auto-asignación y auto-colaborador si el usuario actual responde o agrega notas
+      if (user?.id) {
+        // 1. Si no está asignado o no está asignado a mí, asignar automáticamente al usuario que responde
+        if (!currentConv.assignedUserId || currentConv.assignedUserId !== user.id) {
+          chatService.assignConversation(currentConv.id, user.id).then(() => {
+            const currentAgent = agents.find((a) => a.id === user.id);
+            setCurrentConv((prev) => ({
+              ...prev,
+              assignedUserId: user.id,
+              assignedAgentName: currentAgent?.name || user.name || user.email,
+              isAssignedToMe: true,
+            }));
+          }).catch((err) => console.warn('[ChatConversation] Error en auto-asignación:', err));
+        }
+
+        // 2. Si el usuario actual aún no está en la lista de colaboradores, agregarlo automáticamente
+        if (!selectedCollabIds.includes(user.id)) {
+          const nextCollabIds = [...selectedCollabIds, user.id];
+          setSelectedCollabIds(nextCollabIds);
+          chatService.updateCollaborators(currentConv.id, nextCollabIds).then(() => {
+            const updatedCollabs = agents.filter((a) => nextCollabIds.includes(a.id));
+            setCurrentConv((prev) => ({
+              ...prev,
+              collaborators: updatedCollabs,
+            }));
+          }).catch((err) => console.warn('[ChatConversation] Error en auto-colaborador:', err));
+        }
+      }
     } catch (err: any) {
       console.error('[ChatConversation] Error enviando mensaje:', err);
     }
