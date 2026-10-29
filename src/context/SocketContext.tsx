@@ -58,6 +58,16 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       if (user.role) {
         socketInstance.emit('join', `role:${user.role.toLowerCase()}`);
       }
+
+      // Unirse a las salas de las líneas asignadas al usuario para recibir eventos de línea
+      if (Array.isArray(user.lines)) {
+        user.lines.forEach((l: any) => {
+          if (l?.id) {
+            console.log(`[Socket] Uniéndose a sala de línea: line:${l.id}`);
+            socketInstance.emit('join', `line:${l.id}`);
+          }
+        });
+      }
     });
 
     // Diagnóstico: registrar cualquier evento recibido por el socket

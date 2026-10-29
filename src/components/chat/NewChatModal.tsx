@@ -85,11 +85,22 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
       return;
     }
 
+    let cleanPhone = phone.trim().replace(/[^\d+]/g, '');
+    if (!cleanPhone.startsWith('+')) {
+      cleanPhone = cleanPhone.replace(/\D/g, '');
+      // Si empieza con 0 y tiene 10 dígitos (formato estándar móvil Ecuador 09xxxxxxxx), cambiar por 5939xxxxxxxx
+      if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
+        cleanPhone = '593' + cleanPhone.substring(1);
+      }
+    } else {
+      cleanPhone = cleanPhone.replace(/\D/g, '');
+    }
+
     try {
       setIsSubmitting(true);
       const res = await chatService.startConversation({
         whatsappLineId: selectedLineId,
-        phone: phone.trim(),
+        phone: cleanPhone,
         name: name.trim() || undefined,
         initialMessage: initialMessage.trim(),
       });

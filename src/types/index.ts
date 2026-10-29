@@ -5,6 +5,7 @@ export interface User {
   role: string;
   avatarUrl?: string;
   phone?: string;
+  lines?: Array<{ id: string; name?: string; providerType?: string; phoneNumberId?: string }>;
 }
 
 export type MessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'gif' | 'internal_note';

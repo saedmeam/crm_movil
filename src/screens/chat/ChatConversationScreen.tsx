@@ -504,6 +504,12 @@ export const ChatConversationScreen: React.FC<Props> = ({ route, navigation }) =
               <View style={[styles.phoneChip, isDark && { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
                 <Text style={styles.phoneChipText}>📞 {displayPhone}</Text>
               </View>
+            ) : isLidPhone ? (
+              <View style={[styles.phoneChip, { backgroundColor: isDark ? '#451A03' : '#FEF3C7', borderColor: isDark ? '#78350F' : '#FDE68A', borderWidth: 1 }]}>
+                <Text style={[styles.phoneChipText, { color: isDark ? '#FBBF24' : '#B45309', fontWeight: '700' }]}>
+                  ⚠️ Sin registrar
+                </Text>
+              </View>
             ) : null}
 
             <View style={[styles.lineChip, isDark && { backgroundColor: 'rgba(255,255,255,0.08)' }]}>

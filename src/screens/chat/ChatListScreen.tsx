@@ -85,10 +85,15 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
       // Las líneas de Meta Cloud API no requieren escaneo de QR (usan token de Meta)
       if (l.providerType === 'META_CLOUD') return false;
 
-      // Si el backend marca explícitamente isDisconnected
+      // Si está explícitamente conectada, NO requiere escaneo
+      const statusUpper = String(l.status || '').toUpperCase();
+      if (statusUpper === 'CONNECTED' || statusUpper === 'VINCULADO' || statusUpper === 'ONLINE') {
+        return false;
+      }
+
+      // Si el backend marca explícitamente isDisconnected o si está en estado desconectado/esperando QR
       if (l.isDisconnected === true) return true;
 
-      const statusUpper = String(l.status || '').toUpperCase();
       // Solo alertar si es línea QR_BAILEYS y está esperando QR o desconectada
       return (
         statusUpper === 'QR_READY' ||
@@ -180,6 +185,9 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
 
         if (sType === 'CLIENT') {
           conv.unreadCount = (conv.unreadCount || 0) + 1;
+        } else if (sType === 'AGENT') {
+          // Si el agente respondió (desde app móvil o CRM web), los no leídos se marcan leídos (0)
+          conv.unreadCount = 0;
         }
 
         // Mover la conversación al inicio de la lista
@@ -372,8 +380,17 @@ export const ChatListScreen: React.FC<Props> = ({ navigation }) => {
             {/* Fila de Teléfono y Línea de WhatsApp */}
             <View style={styles.contactMetaRow}>
               {item.contactPhone ? (
-                <View style={[styles.phoneBadge, { backgroundColor: isDark ? '#202C33' : '#F1F5F9', borderColor: colors.borderSubtle }]}>
-                  <Text style={[styles.phoneText, { color: isDark ? '#8696A0' : '#334155' }]}>📞 {item.contactPhone}</Text>
+                <View style={[
+                  styles.phoneBadge,
+                  item.contactPhone.includes('@lid') && { backgroundColor: isDark ? '#451A03' : '#FEF3C7', borderColor: isDark ? '#78350F' : '#FDE68A' },
+                  { backgroundColor: item.contactPhone.includes('@lid') ? (isDark ? '#451A03' : '#FEF3C7') : (isDark ? '#202C33' : '#F1F5F9'), borderColor: colors.borderSubtle }
+                ]}>
+                  <Text style={[
+                    styles.phoneText,
+                    { color: item.contactPhone.includes('@lid') ? (isDark ? '#FBBF24' : '#B45309') : (isDark ? '#8696A0' : '#334155') }
+                  ]}>
+                    {item.contactPhone.includes('@lid') ? '⚠️ (Sin registrar)' : `📞 ${item.contactPhone}`}
+                  </Text>
                 </View>
               ) : null}
 
