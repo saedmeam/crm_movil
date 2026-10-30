@@ -9,6 +9,8 @@ import {
   Alert,
   Platform,
   ScrollView,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import {
   useAudioRecorder,
@@ -67,17 +69,59 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [showStickerMenu, setShowStickerMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   // Menciones @ en Notas Internas
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
 
-  // Lista de emojis y stickers rápidos corporativos
-  const quickStickers = [
-    '👍', '👋', '🤝', '✅', '❤️', '🔥', '🎉', '🙏', 
-    '💼', '📊', '📞', '⏳', '⭐', '🚀', '💯', '😊'
-  ];
+  // Categorías de Emojis estilo WhatsApp
+  const emojiCategories = useMemo(() => [
+    {
+      title: 'Frecuentes / Emociones',
+      emojis: [
+        '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+        '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
+        '😋', '😜', '🤪', '😎', '🤩', '🥳', '😏', '😒',
+        '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫',
+        '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬',
+        '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥',
+        '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬',
+      ],
+    },
+    {
+      title: 'Gestos y Manos',
+      emojis: [
+        '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙',
+        '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️',
+        '🖖', '👋', '🤝', '🙏', '👏', '🙌', '👐', '🤲',
+        '✍️', '💪', '👊', '✊', '🤛', '🤜', '👀', '👁️',
+      ],
+    },
+    {
+      title: 'Trabajo y Oficina',
+      emojis: [
+        '💼', '📁', '📂', '📄', '📑', '📊', '📈', '📉',
+        '📋', '📌', '📍', '📎', '📏', '📐', '✂️', '🖊️',
+        '💻', '🖥️', '🖨️', '⌨️', '🖱️', '📱', '📞', '☎️',
+        '⏰', '⏱️', '⏲️', '⏳', '⌛', '🔔', '🔕', '💡',
+      ],
+    },
+    {
+      title: 'Símbolos y Estados',
+      emojis: [
+        '✅', '❌', '⚠️', '⛔', '🚫', '🔴', '🟢', '🟡',
+        '🔵', '⚪', '⚫', '⭐', '🌟', '✨', '🔥', '💥',
+        '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
+        '💯', '🎉', '🎊', '🚀', '🎯', '🏆', '🥇', '👑',
+      ],
+    },
+  ], []);
+
+  // Función para insertar emoji en el cursor/texto
+  const handleInsertEmoji = (emoji: string) => {
+    setText((prev) => prev + emoji);
+  };
 
   // Configuración de grabación compatible con WhatsApp PTT (ADTS AAC / stream de audio puro)
   const voiceRecordingOptions = {
@@ -383,89 +427,151 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.chatBg }]}>
-      {/* Menú Flotante de Adjuntos */}
-      {showAttachMenu && (
-        <View style={[styles.attachMenu, { backgroundColor: colors.surface }]}>
-          {/* Cámara */}
-          <TouchableOpacity style={styles.attachItem} onPress={handleTakePhoto}>
-            <View style={[styles.attachCircle, { backgroundColor: '#E91E63' }]}>
-              <Camera size={22} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
+      {/* Modal / Action Sheet Elegante para Selección de Adjuntos */}
+      <Modal
+        visible={showAttachMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAttachMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowAttachMenu(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  styles.attachSheet,
+                  { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' },
+                ]}
+              >
+                <View style={styles.attachSheetHeader}>
+                  <Text style={[styles.attachSheetTitle, { color: colors.textPrimary }]}>
+                    Compartir contenido
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowAttachMenu(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <X size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
 
-          {/* Fotos / GIFs */}
-          <TouchableOpacity style={styles.attachItem} onPress={handlePickImage}>
-            <View style={[styles.attachCircle, { backgroundColor: '#9C27B0' }]}>
-              <ImageIcon size={22} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
+                <View style={styles.attachGrid}>
+                  {/* Opción 1: Cámara */}
+                  <TouchableOpacity
+                    style={styles.attachGridItem}
+                    activeOpacity={0.7}
+                    onPress={handleTakePhoto}
+                  >
+                    <View style={[styles.attachCircleBig, { backgroundColor: '#E91E63' }]}>
+                      <Camera size={26} color="#FFFFFF" />
+                    </View>
+                    <Text style={[styles.attachLabel, { color: colors.textPrimary }]}>Cámara</Text>
+                    <Text style={[styles.attachSubLabel, { color: colors.textMuted }]}>Tomar foto</Text>
+                  </TouchableOpacity>
 
-          {/* Videos */}
-          <TouchableOpacity style={styles.attachItem} onPress={handlePickVideo}>
-            <View style={[styles.attachCircle, { backgroundColor: '#0284C7' }]}>
-              <VideoIcon size={22} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
+                  {/* Opción 2: Galería (Fotos / GIFs) */}
+                  <TouchableOpacity
+                    style={styles.attachGridItem}
+                    activeOpacity={0.7}
+                    onPress={handlePickImage}
+                  >
+                    <View style={[styles.attachCircleBig, { backgroundColor: '#9C27B0' }]}>
+                      <ImageIcon size={26} color="#FFFFFF" />
+                    </View>
+                    <Text style={[styles.attachLabel, { color: colors.textPrimary }]}>Fotos</Text>
+                    <Text style={[styles.attachSubLabel, { color: colors.textMuted }]}>Galería / GIF</Text>
+                  </TouchableOpacity>
 
-          {/* Documentos */}
-          <TouchableOpacity style={styles.attachItem} onPress={handlePickDocument}>
-            <View style={[styles.attachCircle, { backgroundColor: '#5B21B6' }]}>
-              <FileText size={22} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
+                  {/* Opción 3: Video */}
+                  <TouchableOpacity
+                    style={styles.attachGridItem}
+                    activeOpacity={0.7}
+                    onPress={handlePickVideo}
+                  >
+                    <View style={[styles.attachCircleBig, { backgroundColor: '#0284C7' }]}>
+                      <VideoIcon size={26} color="#FFFFFF" />
+                    </View>
+                    <Text style={[styles.attachLabel, { color: colors.textPrimary }]}>Videos</Text>
+                    <Text style={[styles.attachSubLabel, { color: colors.textMuted }]}>Grabar / Galería</Text>
+                  </TouchableOpacity>
 
-          {/* Stickers / Emojis */}
-          <TouchableOpacity
-            style={styles.attachItem}
-            onPress={() => {
-              setShowAttachMenu(false);
-              setShowStickerMenu(!showStickerMenu);
-            }}
-          >
-            <View style={[styles.attachCircle, { backgroundColor: '#F59E0B' }]}>
-              <Smile size={22} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
+                  {/* Opción 4: Documentos */}
+                  <TouchableOpacity
+                    style={styles.attachGridItem}
+                    activeOpacity={0.7}
+                    onPress={handlePickDocument}
+                  >
+                    <View style={[styles.attachCircleBig, { backgroundColor: '#5B21B6' }]}>
+                      <FileText size={26} color="#FFFFFF" />
+                    </View>
+                    <Text style={[styles.attachLabel, { color: colors.textPrimary }]}>Documento</Text>
+                    <Text style={[styles.attachSubLabel, { color: colors.textMuted }]}>PDF, Word, Excel</Text>
+                  </TouchableOpacity>
+                </View>
 
-      {/* Barra Rápida de Stickers / Emojis */}
-      {showStickerMenu && (
-        <View style={[styles.stickerBar, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
-          <View style={styles.stickerHeader}>
-            <Smile size={16} color={colors.textSecondary} style={{ marginRight: 6 }} />
-            <TextInput
-              style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, flex: 1 }}
-              value="STICKERS Y REACCIONES RÁPIDAS"
-              editable={false}
-            />
-            <TouchableOpacity onPress={() => setShowStickerMenu(false)}>
-              <X size={18} color={colors.textMuted} />
+                {/* Botón Cancelar */}
+                <TouchableOpacity
+                  style={[styles.attachCancelBtn, { backgroundColor: isDark ? '#374151' : '#F1F5F9' }]}
+                  onPress={() => setShowAttachMenu(false)}
+                >
+                  <Text style={[styles.attachCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Selector de Emojis estilo WhatsApp */}
+      {showEmojiPicker && (
+        <View
+          style={[
+            styles.emojiKeyboardContainer,
+            {
+              backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+              borderColor: colors.borderSubtle,
+            },
+          ]}
+        >
+          <View style={[styles.emojiPickerHeader, { borderBottomColor: colors.borderSubtle }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Smile size={18} color={isDark ? '#00A884' : '#075E54'} />
+              <Text style={[styles.emojiPickerTitle, { color: colors.textPrimary }]}>
+                Emojis de Respuesta
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowEmojiPicker(false)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <View style={styles.stickerRow}>
-            {quickStickers.map((stk, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={styles.stickerBtn}
-                activeOpacity={0.7}
-                onPress={async () => {
-                  setShowStickerMenu(false);
-                  await onSendMessage({
-                    content: stk,
-                    type: 'sticker',
-                  });
-                }}
-              >
-                <Text
-                  style={{ fontSize: 28, textAlign: 'center', includeFontPadding: false }}
-                  allowFontScaling={false}
-                >
-                  {stk}
+
+          <ScrollView
+            style={styles.emojiScrollView}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+          >
+            {emojiCategories.map((cat, catIdx) => (
+              <View key={catIdx} style={styles.emojiCategoryBlock}>
+                <Text style={[styles.emojiCategoryTitle, { color: colors.textSecondary }]}>
+                  {cat.title}
                 </Text>
-              </TouchableOpacity>
+                <View style={styles.emojiGrid}>
+                  {cat.emojis.map((em, emIdx) => (
+                    <TouchableOpacity
+                      key={emIdx}
+                      style={styles.emojiGridItem}
+                      activeOpacity={0.6}
+                      onPress={() => handleInsertEmoji(em)}
+                    >
+                      <Text style={styles.emojiChar} allowFontScaling={false}>
+                        {em}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             ))}
-          </View>
+          </ScrollView>
         </View>
       )}
 
@@ -521,7 +627,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         </View>
       )}
 
-      {/* Barra de Entrada */}
+      {/* Barra de Entrada estilo WhatsApp */}
       <View
         style={[
           styles.container,
@@ -529,28 +635,55 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           isInternalNoteMode && styles.containerInternalNote,
         ]}
       >
-        {/* Botón de Adjuntar */}
+        {/* Botón de Emojis estilo WhatsApp (a la izquierda del campo de texto) */}
         <TouchableOpacity
           style={styles.iconButton}
           onPress={() => {
-            setShowStickerMenu(false);
+            setShowAttachMenu(false);
+            setShowEmojiPicker(!showEmojiPicker);
+          }}
+          disabled={disabled || isRecording || isUploading}
+        >
+          <Smile size={22} color={showEmojiPicker ? (isDark ? '#00A884' : '#075E54') : colors.textSecondary} />
+        </TouchableOpacity>
+
+        {/* Input o Estado de Grabación */}
+        {isRecording ? (
+          <View style={styles.recordingIndicator}>
+            <View style={styles.recordingDot} />
+            <TextInput
+              style={styles.recordingText}
+              value="Grabando nota de voz..."
+              editable={false}
+            />
+          </View>
+        ) : (
+          <TextInput
+            style={[styles.textInput, { color: colors.inputText }]}
+            placeholder={
+              isInternalNoteMode
+                ? 'Nota interna (usa @ para mencionar)...'
+                : 'Mensaje'
+            }
+            placeholderTextColor={colors.textMuted}
+            value={text}
+            onChangeText={handleTextChange}
+            onFocus={() => setShowEmojiPicker(false)}
+            multiline
+            editable={!disabled && !isUploading}
+          />
+        )}
+
+        {/* Botón de Adjuntar (clip de papel a la derecha del input, como WhatsApp) */}
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => {
+            setShowEmojiPicker(false);
             setShowAttachMenu(!showAttachMenu);
           }}
           disabled={disabled || isRecording || isUploading}
         >
           <Paperclip size={22} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        {/* Botón de Stickers directo */}
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => {
-            setShowAttachMenu(false);
-            setShowStickerMenu(!showStickerMenu);
-          }}
-          disabled={disabled || isRecording || isUploading}
-        >
-          <Smile size={22} color={colors.textSecondary} />
         </TouchableOpacity>
 
         {/* Alternador Nota Interna */}
@@ -569,32 +702,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         >
           <Lock size={16} color={isInternalNoteMode ? '#854D0E' : colors.textSecondary} />
         </TouchableOpacity>
-
-        {/* Input o Estado de Grabación */}
-        {isRecording ? (
-          <View style={styles.recordingIndicator}>
-            <View style={styles.recordingDot} />
-            <TextInput
-              style={styles.recordingText}
-              value="Grabando nota de voz..."
-              editable={false}
-            />
-          </View>
-        ) : (
-          <TextInput
-            style={[styles.textInput, { color: colors.inputText }]}
-            placeholder={
-              isInternalNoteMode
-                ? 'Nota interna (usa @ para mencionar y añadir colaborador)...'
-                : 'Mensaje'
-            }
-            placeholderTextColor={colors.textMuted}
-            value={text}
-            onChangeText={handleTextChange}
-            multiline
-            editable={!disabled && !isUploading}
-          />
-        )}
 
         {/* Botón de Acción Principal (Enviar texto / Parar grabación / Grabar voz) */}
         {isUploading ? (
@@ -638,29 +745,126 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#F0F2F5',
   },
-  attachMenu: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  attachSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  attachSheetHeader: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  attachSheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  attachGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  attachGridItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  attachCircleBig: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
-    alignSelf: 'flex-start',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  attachLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  attachSubLabel: {
+    fontSize: 10,
+    textAlign: 'center',
+  },
+  attachCancelBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  attachCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emojiKeyboardContainer: {
+    maxHeight: 250,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    gap: 12,
+    elevation: 3,
+    overflow: 'hidden',
   },
-  attachItem: {
-    padding: 4,
+  emojiPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
   },
-  attachCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  emojiPickerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emojiScrollView: {
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
+  emojiCategoryBlock: {
+    marginVertical: 6,
+  },
+  emojiCategoryTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    paddingHorizontal: 6,
+    marginBottom: 4,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  emojiGridItem: {
+    width: '12.5%',
+    aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  emojiChar: {
+    fontSize: 24,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   container: {
     flexDirection: 'row',
@@ -728,38 +932,6 @@ const styles = StyleSheet.create({
   },
   internalSendBtn: {
     backgroundColor: '#854D0E',
-  },
-  stickerBar: {
-    padding: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  stickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  stickerRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    justifyContent: 'space-around',
-    paddingVertical: 4,
-  },
-  stickerBtn: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
   },
   mentionMenu: {
     marginBottom: 8,
